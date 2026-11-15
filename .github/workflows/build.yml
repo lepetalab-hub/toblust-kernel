@@ -44,6 +44,12 @@ jobs:
           export KBUILD_BUILD_USER=tobluts KBUILD_BUILD_HOST=citrus
           make O=out CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) 2>&1 | tee out/build.log
 
+      - name: build hello module
+        run: |
+          export ARCH=arm64 SUBARCH=arm64
+          make O=out CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) M=tests/hello modules
+          ls -la tests/hello/hello.ko
+
       - uses: actions/upload-artifact@v4
         with:
           name: tobluts-kernel-citrus
@@ -51,3 +57,4 @@ jobs:
             out/arch/arm64/boot/Image*
             out/arch/arm64/boot/dts/**/*.dtb
             out/build.log
+            tests/hello/hello.ko
