@@ -1,0 +1,49 @@
+name: build tobluts kernel citrus
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [nethunter-stable]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev \
+            gcc-aarch64-linux-gnu clang lld llvm
+
+      - name: configure
+        run: |
+          export ARCH=arm64 SUBARCH=arm64
+          set -o pipefail
+          export KBUILD_BUILD_USER=tobluts KBUILD_BUILD_HOST=citrus
+          make O=out CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 vendor/nh_defconfig
+          scripts/config --file out/.config --disable MODULE_SIG --disable MODULE_SIG_FORCE \
+            --disable MODULE_SIG_ALL --disable MODULE_SIG_SHA512 --disable MODULE_SIG_KEY
+          make O=out CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 olddefconfig
+          if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
+            echo "MODULE_SIG masih aktif"; exit 1
+          fi
+
+      - name: build
+        run: |
+          export ARCH=arm64 SUBARCH=arm64
+          set -o pipefail
+          export KBUILD_BUILD_USER=tobluts KBUILD_BUILD_HOST=citrus
+          make O=out CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) 2>&1 | tee out/build.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tobluts-kernel-citrus
+          path: |
+            out/arch/arm64/boot/Image*
+            out/arch/arm64/boot/dts/**/*.dtb
+            out/build.log
