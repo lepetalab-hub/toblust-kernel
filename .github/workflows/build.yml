@@ -19,6 +19,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev \
             gcc-aarch64-linux-gnu clang lld llvm
+          sudo ln -sf /usr/bin/python3 /usr/local/bin/python2
+          sed -i 's/\bxrange(/range(/g' scripts/dtc/libfdt/mkdtboimg.py
 
       - name: configure
         run: |
