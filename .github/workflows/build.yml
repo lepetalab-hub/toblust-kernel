@@ -21,6 +21,7 @@ jobs:
             gcc-aarch64-linux-gnu clang lld llvm
           sudo ln -sf /usr/bin/python3 /usr/local/bin/python2
           sed -i 's/\bxrange(/range(/g' scripts/dtc/libfdt/mkdtboimg.py
+          sed -i 's/dt_entry_buf = ""/dt_entry_buf = b""/' scripts/dtc/libfdt/mkdtboimg.py
 
       - name: configure
         run: |
