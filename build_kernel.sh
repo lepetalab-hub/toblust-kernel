@@ -4,8 +4,6 @@ set -e
 [ ! -e "scripts/packaging/pack.sh" ] && git submodule init && git submodule update
 [ ! -e "toolchain" ] && echo "Make toolchain avaliable at $(pwd)/toolchain" && exit
 
-# Patch for 4.14
-sed -i 's/#ifdef CONFIG_KPROBES/#if 0/g' KernelSU/kernel/ksu.c
 
 export KBUILD_BUILD_USER=shadow
 export KBUILD_BUILD_HOST=elite
