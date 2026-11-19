@@ -1,0 +1,64 @@
+name: build-ksun
+
+on:
+  workflow_dispatch:
+    inputs:
+      defconfig:
+        description: "Defconfig relatif terhadap arch/arm64/configs"
+        required: true
+        default: "vendor/citrus-stock-perf_defconfig"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    env:
+      KSU_VERSION_OVERRIDE: "33308"
+      KSU_VERSION_TAG_OVERRIDE: "v3.4.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: susfs-try
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git make bc bison flex libssl-dev libelf-dev \
+            zip unzip curl python3 device-tree-compiler
+
+      - name: Toolchain (Clang)
+        run: |
+          # FILL: isi URL dan branch repo Clang
+          git clone --depth 1 -b FILL_BRANCH FILL_URL "$GITHUB_WORKSPACE/toolchain"
+
+      - name: Build
+        env:
+          DEFCONFIG: ${{ inputs.defconfig }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/toolchain/bin:$PATH"
+          export KBUILD_BUILD_USER=shadow KBUILD_BUILD_HOST=elite
+          rm -rf out
+          make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) "$DEFCONFIG"
+          scripts/config --file out/.config --disable MODULE_SIG --disable MODULE_SIG_FORCE \
+            --disable MODULE_SIG_ALL --disable MODULE_SIG_SHA512 --disable MODULE_SIG_KEY 2>/dev/null || true
+          make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) olddefconfig
+          if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
+            echo "MODULE_SIG masih aktif"; exit 1
+          fi
+          grep -E "KSU|SUSFS" out/.config | tee ksu-config.txt
+          make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) 2>&1 | tee build.log
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp out/arch/arm64/boot/Image* artifacts/ 2>/dev/null || true
+          find out/arch/arm64/boot/dts -name "*.dtb" -exec cp {} artifacts/ \; 2>/dev/null || true
+          cp ksu-config.txt build.log artifacts/
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-ksun-citrus
+          path: artifacts/
