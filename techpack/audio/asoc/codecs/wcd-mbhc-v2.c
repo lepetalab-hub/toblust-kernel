@@ -2061,7 +2061,7 @@ void wcd_mbhc_deinit(struct wcd_mbhc *mbhc)
 	mutex_destroy(&mbhc->codec_resource_lock);
 	mutex_destroy(&mbhc->hphl_pa_lock);
 	mutex_destroy(&mbhc->hphr_pa_lock);
-#if !defined(CONFIG_MACH_XIAOMI_LIME) || !defined(CONFIG_MACH_POCO_CITRUS)
+#if defined(CONFIG_MACH_XIAOMI_LIME) || defined(CONFIG_MACH_POCO_CITRUS)
 	switch_dev_unregister(&accdet_data);
 #endif
 }
