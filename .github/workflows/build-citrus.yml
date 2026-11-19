@@ -1,4 +1,4 @@
-name: build-ksun
+name: build-citrus
 
 on:
   workflow_dispatch:
@@ -12,9 +12,6 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 240
-    env:
-      KSU_VERSION_OVERRIDE: "33308"
-      KSU_VERSION_TAG_OVERRIDE: "v3.4.0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,7 +40,7 @@ jobs:
           if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
             echo "MODULE_SIG masih aktif"; exit 1
           fi
-          grep -E "KSU|SUSFS" out/.config | tee ksu-config.txt || true
+          grep -E "CONFIG_QCA_CLD_WLAN|CONFIG_SCHED_WALT|CONFIG_LOCALVERSION" out/.config | tee config-check.txt
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) 2>&1 | tee build.log
 
       - name: Collect artifacts
@@ -51,13 +48,13 @@ jobs:
         run: |
           mkdir -p artifacts
           ls out/arch/arm64/boot/Image* >/dev/null 2>&1 || { echo "Image tidak ada, build gagal"; exit 1; }
-          cp out/arch/arm64/boot/Image* artifacts/ 2>/dev/null || true
+          cp out/arch/arm64/boot/Image* artifacts/
           find out/arch/arm64/boot/dts -name "*.dtb" -exec cp {} artifacts/ \; 2>/dev/null || true
-          cp ksu-config.txt build.log artifacts/ 2>/dev/null || true
+          cp config-check.txt build.log artifacts/ 2>/dev/null || true
 
       - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-ksun-citrus
+          name: kernel-citrus
           path: artifacts/
