@@ -33,7 +33,7 @@ jobs:
 
       - name: Build
         env:
-          DEFCONFIG: ${{ inputs.defconfig }}
+          DEFCONFIG: ${{ inputs.defconfig || 'vendor/citrus-stock-perf_defconfig' }}
         run: |
           set -o pipefail
           export KBUILD_BUILD_USER=shadow KBUILD_BUILD_HOST=elite
