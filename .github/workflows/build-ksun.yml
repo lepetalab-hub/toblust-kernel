@@ -19,26 +19,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: susfs-try
           submodules: recursive
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y git make bc bison flex libssl-dev libelf-dev \
-            zip unzip curl python3 device-tree-compiler
-
-      - name: Toolchain (Clang)
-        run: |
-          # FILL: isi URL dan branch repo Clang
-          git clone --depth 1 -b FILL_BRANCH FILL_URL "$GITHUB_WORKSPACE/toolchain"
+            zip unzip curl python3 device-tree-compiler \
+            gcc-aarch64-linux-gnu clang lld llvm
 
       - name: Build
         env:
           DEFCONFIG: ${{ inputs.defconfig }}
         run: |
-          export PATH="$GITHUB_WORKSPACE/toolchain/bin:$PATH"
+          set -o pipefail
           export KBUILD_BUILD_USER=shadow KBUILD_BUILD_HOST=elite
+          clang --version
           rm -rf out
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) "$DEFCONFIG"
           scripts/config --file out/.config --disable MODULE_SIG --disable MODULE_SIG_FORCE \
@@ -47,17 +43,20 @@ jobs:
           if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
             echo "MODULE_SIG masih aktif"; exit 1
           fi
-          grep -E "KSU|SUSFS" out/.config | tee ksu-config.txt
+          grep -E "KSU|SUSFS" out/.config | tee ksu-config.txt || true
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) 2>&1 | tee build.log
 
       - name: Collect artifacts
+        if: always()
         run: |
           mkdir -p artifacts
+          ls out/arch/arm64/boot/Image* >/dev/null 2>&1 || { echo "Image tidak ada, build gagal"; exit 1; }
           cp out/arch/arm64/boot/Image* artifacts/ 2>/dev/null || true
           find out/arch/arm64/boot/dts -name "*.dtb" -exec cp {} artifacts/ \; 2>/dev/null || true
-          cp ksu-config.txt build.log artifacts/
+          cp ksu-config.txt build.log artifacts/ 2>/dev/null || true
 
       - name: Upload
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kernel-ksun-citrus
