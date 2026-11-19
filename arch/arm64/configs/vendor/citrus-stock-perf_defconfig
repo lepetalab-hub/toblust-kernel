@@ -5573,3 +5573,7 @@ CONFIG_KSU_SUSFS_PRIORITY_UID_FILTER=y
 # Qualcomm WLAN (qcacld-3.0) built-in, root cause: option missing in vanilla base
 CONFIG_QCA_CLD_WLAN=y
 CONFIG_QCA_CLD_WLAN_PROFILE="default"
+
+# NoMount (VFS path redirection, via KernelSU metamodule)
+CONFIG_NOMOUNT=y
+CONFIG_KEYS=y
