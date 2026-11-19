@@ -1,6 +1,8 @@
 name: build-ksun
 
 on:
+  push:
+    branches: [ksun-susfs]
   workflow_dispatch:
     inputs:
       defconfig:
