@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: susfs-try
+          ref: ksun-susfs
           submodules: recursive
 
       - name: Install dependencies
