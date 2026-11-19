@@ -33,6 +33,7 @@ jobs:
         env:
           DEFCONFIG: ${{ inputs.defconfig }}
         run: |
+          set -o pipefail
           export KBUILD_BUILD_USER=shadow KBUILD_BUILD_HOST=elite
           clang --version
           rm -rf out
@@ -50,6 +51,7 @@ jobs:
         if: always()
         run: |
           mkdir -p artifacts
+          ls out/arch/arm64/boot/Image* >/dev/null 2>&1 || { echo "Image tidak ada, build gagal"; exit 1; }
           cp out/arch/arm64/boot/Image* artifacts/ 2>/dev/null || true
           find out/arch/arm64/boot/dts -name "*.dtb" -exec cp {} artifacts/ \; 2>/dev/null || true
           cp ksu-config.txt build.log artifacts/ 2>/dev/null || true
