@@ -27,6 +27,7 @@ enum { sysctl_hung_task_timeout_secs = 0 };
 
 extern unsigned int sysctl_walt_rtg_cfs_boost_prio;
 extern unsigned int sysctl_walt_low_latency_task_threshold;
+extern unsigned int sysctl_sched_force_lb_enable;
 extern unsigned int sysctl_sched_latency;
 extern unsigned int sysctl_sched_min_granularity;
 extern unsigned int sysctl_sched_sync_hint_enable;
