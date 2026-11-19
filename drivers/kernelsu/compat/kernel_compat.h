@@ -7,6 +7,17 @@
 #include "ss/policydb.h"
 #include "linux/key.h"
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#include <linux/string.h>
+static inline ssize_t strscpy_pad(char *dest, const char *src, size_t count)
+{
+	ssize_t ret = strscpy(dest, src, count);
+	if (ret >= 0 && (size_t)ret < count)
+		memset(dest + ret, 0, count - ret);
+	return ret;
+}
+#endif
+
 /*
  * Adapt to Huawei HISI kernel without affecting other kernels ,
  * Huawei Hisi Kernel EBITMAP Enable or Disable Flag ,
