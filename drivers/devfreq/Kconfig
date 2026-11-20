@@ -247,6 +247,28 @@ config DEVFREQ_GOV_STATICMAP
 	  This governor votes for the DDR BW based on the device's clock rate
 	  change.
 
+config DEVFREQ_BOOST
+	bool "Devfreq Boost"
+	help
+	  Boosts enumerated devfreq devices upon input, and allows for boosting
+	  specific devfreq devices on other custom events.
+
+if DEVFREQ_BOOST
+
+config DEVFREQ_INPUT_BOOST_DURATION_MS
+	int "Input boost duration"
+	default "100"
+
+config DEVFREQ_WAKE_BOOST_DURATION_MS
+	int "Wake boost duration"
+	default "1000"
+
+config DEVFREQ_CPU_DDR_BW_BOOST_FREQ
+	int "Boost freq for cpu-cpu-ddr-bw device"
+	default "0"
+
+endif
+
 source "drivers/devfreq/event/Kconfig"
 
 endif # PM_DEVFREQ
