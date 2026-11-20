@@ -7,17 +7,6 @@
 #include "ss/policydb.h"
 #include "linux/key.h"
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
-#include <linux/string.h>
-static inline ssize_t strscpy_pad(char *dest, const char *src, size_t count)
-{
-	ssize_t ret = strscpy(dest, src, count);
-	if (ret >= 0 && (size_t)ret < count)
-		memset(dest + ret, 0, count - ret);
-	return ret;
-}
-#endif
-
 /*
  * Adapt to Huawei HISI kernel without affecting other kernels ,
  * Huawei Hisi Kernel EBITMAP Enable or Disable Flag ,
@@ -94,6 +83,15 @@ static inline void ksu_kvfree(const void *buf)
 }
 #define kvmalloc ksu_kvmalloc
 #define kvfree ksu_kvfree
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+/*
+ * kvcalloc() was added in v4.18; provide a zeroing fallback for
+ * older kernels (4.9/4.14). kzalloc is sufficient for the small
+ * counts used by the symbol-lookup supercall and policydb copies.
+ */
+#define kvcalloc(n, size, flags) kzalloc((n) * (size), flags)
 #endif
 
 // https://elixir.bootlin.com/linux/v4.14.222/source/lib/string.c#L282
