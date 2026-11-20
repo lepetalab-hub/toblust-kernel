@@ -128,7 +128,7 @@ static ssize_t suspend_time_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%llu\n", time_diff);
 }
 
-static unsigned int adrenoboost = 1;
+static unsigned int adrenoboost = 2;
 
 static ssize_t adrenoboost_show(struct device *dev,
                 struct device_attribute *attr, char *buf)
