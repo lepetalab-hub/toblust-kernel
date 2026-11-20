@@ -2,7 +2,7 @@ name: build-ksun
 
 on:
   push:
-    branches: [ksun-susfs]
+    branches: [ksun-v342]
   workflow_dispatch:
     inputs:
       defconfig:
@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 240
     env:
-      KSU_VERSION_OVERRIDE: "33308"
-      KSU_VERSION_TAG_OVERRIDE: "v3.4.0"
+      KSU_VERSION_OVERRIDE: "33355"
+      KSU_VERSION_TAG_OVERRIDE: "v3.4.2"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
