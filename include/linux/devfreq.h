@@ -184,6 +184,8 @@ struct devfreq {
 	unsigned long last_stat_updated;
 
 	struct srcu_notifier_head transition_notifier_list;
+	bool is_boost_device;
+	bool max_boost;
 };
 
 struct devfreq_freqs {
@@ -430,5 +432,7 @@ static inline int devfreq_update_stats(struct devfreq *df)
 	return -EINVAL;
 }
 #endif /* CONFIG_PM_DEVFREQ */
+
+extern int update_devfreq(struct devfreq *devfreq);
 
 #endif /* __LINUX_DEVFREQ_H__ */
