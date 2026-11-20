@@ -136,7 +136,7 @@ static ssize_t adrenoboost_show(struct device *dev,
         return snprintf(buf, PAGE_SIZE, "%u\n", adrenoboost);
 }
 
-static ssize_t adrenoboost_save(struct device *dev,
+static ssize_t adrenoboost_store(struct device *dev,
                 struct device_attribute *attr, const char *buf, size_t count)
 {
         int input;
