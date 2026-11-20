@@ -128,6 +128,29 @@ static ssize_t suspend_time_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%llu\n", time_diff);
 }
 
+static unsigned int adrenoboost = 1;
+
+static ssize_t adrenoboost_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+        return snprintf(buf, PAGE_SIZE, "%u\n", adrenoboost);
+}
+
+static ssize_t adrenoboost_save(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+        int input;
+
+        if (sscanf(buf, "%d", &input) != 1 || input < 0 || input > 3)
+                adrenoboost = 0;
+        else
+                adrenoboost = input;
+
+        return count;
+}
+
+static DEVICE_ATTR_RW(adrenoboost);
+
 static DEVICE_ATTR_RO(gpu_load);
 
 static DEVICE_ATTR_RO(suspend_time);
@@ -135,6 +158,7 @@ static DEVICE_ATTR_RO(suspend_time);
 static const struct device_attribute *adreno_tz_attr_list[] = {
 		&dev_attr_gpu_load,
 		&dev_attr_suspend_time,
+		&dev_attr_adrenoboost,
 		NULL
 };
 
@@ -380,7 +404,10 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 
 	*freq = stats->current_frequency;
 	priv->bin.total_time += stats->total_time;
-	priv->bin.busy_time += stats->busy_time;
+	if ((unsigned int)(priv->bin.busy_time + stats->busy_time) >= MIN_BUSY)
+		priv->bin.busy_time += stats->busy_time * (1 + (adrenoboost * 3) / 2);
+	else
+		priv->bin.busy_time += stats->busy_time;
 
 	if (stats->private_data)
 		context_count =  *((int *)stats->private_data);
