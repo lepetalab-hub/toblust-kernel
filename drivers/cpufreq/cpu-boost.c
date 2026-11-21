@@ -482,6 +482,9 @@ static int cpu_boost_init(void)
 	ret = sysfs_create_file(cpu_boost_kobj, &input_boost_freq_attr.attr);
 	if (ret)
 		pr_err("Failed to create input_boost_freq node: %d\n", ret);
+    /* input boost freq = max freq of each cluster */
+    for (int bcpu = 0; bcpu < 8; bcpu++)
+            per_cpu(sync_info, bcpu).input_boost_freq = bcpu < 4 ? 1804800 : 2016000;
 	ret = sysfs_create_file(cpu_boost_kobj, &powerkey_input_boost_freq_attr.attr);
 		if (ret)
 			pr_err("Failed to create powerkey_input_boost_freq node: %d\n", ret);
