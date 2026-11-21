@@ -1383,6 +1383,9 @@ static int32_t nvt_ts_late_probe(struct i2c_client *client,
 			goto err_int_request_failed;
 		} else {
 			nvt_irq_enable(false);
+			/* keep touch IRQ thread on a big core: lower input latency under load */
+			if (irq_set_affinity(client->irq, cpumask_of(7)))
+				NVT_LOG("irq affinity to cpu7 failed\n");
 			NVT_LOG("request irq %d succeed\n", client->irq);
 		}
 	}
