@@ -1,0 +1,63 @@
+name: build-kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "vanilla atau ksu-susfs"
+        type: choice
+        options: [vanilla, ksu-susfs]
+        default: vanilla
+      defconfig:
+        description: "nama file di arch/arm64/configs (WAJIB sesuai repo)"
+        required: true
+      ksu_ref:
+        description: "ref KernelSU (hanya ksu-susfs)"
+        default: main
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison flex libssl-dev libelf-dev \
+            dwarves clang lld llvm python3 zip
+
+      - name: KernelSU and SUSFS
+        if: inputs.variant == 'ksu-susfs'
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/${{ inputs.ksu_ref }}/kernel/setup.sh" | bash -s "${{ inputs.ksu_ref }}"
+          test -f patches/susfs.patch || { echo "ERROR: patches/susfs.patch belum ada"; exit 1; }
+          patch -p1 --forward --dry-run < patches/susfs.patch
+          patch -p1 --forward < patches/susfs.patch
+
+      - name: Apply gaming and streaming tweaks
+        run: tools/apply-tweaks.sh . "${{ inputs.defconfig }}"
+
+      - name: Configure and verify
+        run: |
+          make O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 "${{ inputs.defconfig }}"
+          grep -qx "# CONFIG_MODVERSIONS is not set" out/.config \
+            || { echo "ERROR: MODVERSIONS masih aktif"; exit 1; }
+          grep -qE "^CONFIG_HZ_1000=y$" out/.config \
+            || { echo "ERROR: HZ_1000 tidak aktif setelah olddefconfig"; exit 1; }
+
+      - name: Build Image
+        run: make -j"$(nproc)" O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 Image
+
+      - name: Collect artifact
+        run: |
+          mkdir -p artifact
+          cp out/arch/arm64/boot/Image artifact/
+          cp out/.config "artifact/config-${{ inputs.variant }}"
+          (cd artifact && sha256sum * > SHA256SUMS)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ inputs.variant }}-${{ github.run_number }}
+          path: artifact/
