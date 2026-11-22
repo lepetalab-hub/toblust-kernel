@@ -40,13 +40,13 @@ jobs:
           clang --version
           rm -rf out
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) "$DEFCONFIG"
-          scripts/config --file out/.config --disable MODULE_SIG --disable MODULE_SIG_FORCE \
+          scripts/config --file out/.config --disable MODVERSIONS --disable MODULE_SIG --disable MODULE_SIG_FORCE \
             --disable MODULE_SIG_ALL --disable MODULE_SIG_SHA512 --disable MODULE_SIG_KEY 2>/dev/null || true
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) olddefconfig
           if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
             echo "MODULE_SIG masih aktif"; exit 1
           fi
-          grep -E "KSU|SUSFS" out/.config | tee ksu-config.txt
+          grep -E "KSU|SUSFS|MODVERSIONS" out/.config | tee ksu-config.txt
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) 2>&1 | tee build.log
 
       - name: Collect artifacts
