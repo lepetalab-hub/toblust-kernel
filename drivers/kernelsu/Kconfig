@@ -2,12 +2,10 @@ menu "KernelSU"
 
 config KSU
 	tristate "KernelSU function support"
-	depends on KPROBES && EXT4_FS
 	default y
 	help
 	  Enable kernel-level root privileges on Android System.
 	  Requires CONFIG_KPROBES for kernel hooking support.
-	  Requires CONFIG_EXT4_FS for `ext4_unregister_sysfs`.
 	  To compile as a module, choose M here: the
 	  module will be called kernelsu.
 
@@ -35,12 +33,102 @@ config KSU_DISABLE_POLICY
 	  Escalation will always use the default full root profile, and
 	  non-root handling will follow the global umount policy only.
 
-config KSU_X86_PATCH_SYSCALL_DISPATCHER
-	bool "Dynamically patch x64's hardened syscall dispatcher to support syscall hooks"
-	depends on KSU && X86_64
+config KSU_ALLOWLIST_WORKAROUND
+	bool "KernelSU allowlist workaround"
+	depends on KSU
 	default n
 	help
-	  Dynamically patch x64's hardened syscall dispatcher to support syscall hooks. This is a
-	  replacement for a kernel source code patch, and is useful for x86_64 LKM mode.
+	  Enable workaround for broken allowlist save
+
+# For easier extern ifdef handling
+config KSU_MANUAL_HOOK
+	bool "KernelSU manual hook mode."
+	depends on KSU && KSU != m
+	default y if !KPROBES
+	default n
+	help
+	  Enable manual hook support.
+
+choice
+	prompt "KernelSU dynamic hook mode"
+	depends on KSU && !KSU_MANUAL_HOOK
+	default KSU_KPROBES_HOOK
+
+config KSU_KPROBES_HOOK
+	bool "KernelSU tracepoint+kretprobe hook"
+	depends on KRETPROBES && KPROBES && HAVE_SYSCALL_TRACEPOINTS
+	help
+	  Enable KPROBES, KRETPROBES and TRACEPOINT hook for KernelSU core.
+	  This should not be used on kernel below 5.10.
+
+config KSU_SYSCALL_TABLE_HOOK
+	bool "KernelSU syscall table patching hook"
+	depends on ARM64 || X86_64
+	help
+	  Patch sys_call_table entries directly to hook syscalls without
+	  kprobes or tracepoints. Intended for non-GKI kernels where kprobes
+	  are unavailable or non-functional.
+	  Requires kernel >= 4.17 (pt_regs-based syscall ABI).
+
+endchoice
+
+menu "KernelSU - SUSFS"
+
+config KSU_SUSFS
+	bool "KernelSU addon - SUSFS"
+	depends on KSU && THREAD_INFO_IN_TASK
+	default y
+
+config KSU_SUSFS_SUS_PATH
+	bool "Hide suspicious paths"
+	depends on KSU_SUSFS
+	default y
+
+config KSU_SUSFS_SUS_MOUNT
+	bool "Hide suspicious mounts"
+	depends on KSU_SUSFS
+	default y
+
+config KSU_SUSFS_SUS_KSTAT
+	bool "Spoof suspicious kstat data"
+	depends on KSU_SUSFS
+	default y
+
+config KSU_SUSFS_SPOOF_UNAME
+	bool "Spoof uname"
+	depends on KSU_SUSFS
+	default y
+
+config KSU_SUSFS_ENABLE_LOG
+	bool "Enable SuSFS kernel logging"
+	depends on KSU_SUSFS
+	default n
+
+config KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
+	bool "Hide KernelSU and SuSFS symbols from kallsyms"
+	depends on KSU_SUSFS
+	default y
+
+config KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+	bool "Spoof cmdline or bootconfig"
+	depends on KSU_SUSFS
+	default y
+
+config KSU_SUSFS_OPEN_REDIRECT
+	bool "Redirect selected opens"
+	depends on KSU_SUSFS
+	default y
+
+config KSU_SUSFS_SUS_MAP
+	bool "Hide selected file-backed memory mappings"
+	depends on KSU_SUSFS
+	default y
+
+config KSU_SUSFS_PRIORITY_UID_FILTER
+	bool "Filter priority by UID"
+	depends on KSU_SUSFS
+	default y
+
+endmenu
 
 endmenu
