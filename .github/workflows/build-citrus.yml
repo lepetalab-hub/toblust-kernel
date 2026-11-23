@@ -36,6 +36,8 @@ jobs:
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) "$DEFCONFIG"
           scripts/config --file out/.config --disable MODULE_SIG --disable MODULE_SIG_FORCE \
             --disable MODULE_SIG_ALL --disable MODULE_SIG_SHA512 --disable MODULE_SIG_KEY 2>/dev/null || true
+          scripts/config --file out/.config -e MODULES -e MODVERSIONS -e KSU_ALLOWLIST_WORKAROUND -d LOCALVERSION_AUTO --set-str LOCALVERSION "-perf-g9aba441cf6cd-dirty"
+          grep -q "^CONFIG_MODVERSIONS=y" out/.config || { echo "MODVERSIONS tidak aktif"; exit 1; }
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) olddefconfig
           if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
             echo "MODULE_SIG masih aktif"; exit 1
