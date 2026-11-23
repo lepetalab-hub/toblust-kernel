@@ -19,13 +19,13 @@
 #include <linux/power_supply.h>
 #include <linux/pm_wakeup.h>
 #include <linux/workqueue.h>
-static void rapid_gc_sbi_add(struct f2fs_sb_info *sbi);
-static void rapid_gc_sbi_del(struct f2fs_sb_info *sbi);
 
 #include "f2fs.h"
 #include "node.h"
 #include "segment.h"
 #include "gc.h"
+static void rapid_gc_sbi_add(struct f2fs_sb_info *sbi);
+static void rapid_gc_sbi_del(struct f2fs_sb_info *sbi);
 #include "iostat.h"
 #include <trace/events/f2fs.h>
 
