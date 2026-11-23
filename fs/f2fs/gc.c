@@ -15,6 +15,12 @@
 #include <linux/freezer.h>
 #include <linux/sched/signal.h>
 #include <linux/random.h>
+#include <linux/fb.h>
+#include <linux/power_supply.h>
+#include <linux/pm_wakeup.h>
+#include <linux/workqueue.h>
+static void rapid_gc_sbi_add(struct f2fs_sb_info *sbi);
+static void rapid_gc_sbi_del(struct f2fs_sb_info *sbi);
 
 #include "f2fs.h"
 #include "node.h"
@@ -191,6 +197,8 @@ int f2fs_start_gc_thread(struct f2fs_sb_info *sbi)
 	gc_th->gc_wake = 0;
 
 	sbi->gc_thread = gc_th;
+	INIT_LIST_HEAD(&sbi->rapid_gc_list);
+	rapid_gc_sbi_add(sbi);
 	init_waitqueue_head(&sbi->gc_thread->gc_wait_queue_head);
 	init_waitqueue_head(&sbi->gc_thread->fggc_wq);
 	sbi->gc_thread->f2fs_gc_task = kthread_run(gc_thread_func, sbi,
@@ -210,6 +218,7 @@ void f2fs_stop_gc_thread(struct f2fs_sb_info *sbi)
 
 	if (!gc_th)
 		return;
+	rapid_gc_sbi_del(sbi);
 	kthread_stop(gc_th->f2fs_gc_task);
 	wake_up_all(&gc_th->fggc_wq);
 	kfree(gc_th);
@@ -2179,3 +2188,96 @@ out_err:
 	clear_sbi_flag(sbi, SBI_IS_RESIZEFS);
 	return err;
 }
+
+/* Rapid GC: screen off + charger => GC_URGENT_HIGH (same mode as sysfs gc_urgent=1) */
+#define RAPID_GC_TRIALS 1000
+static LIST_HEAD(rapid_gc_sbi_list);
+static DEFINE_MUTEX(rapid_gc_mutex);
+static bool rapid_gc_screen_on = true;
+static struct wakeup_source *rapid_gc_ws;
+static struct work_struct rapid_gc_work;
+
+static void rapid_gc_sbi_add(struct f2fs_sb_info *sbi)
+{
+	mutex_lock(&rapid_gc_mutex);
+	list_add_tail(&sbi->rapid_gc_list, &rapid_gc_sbi_list);
+	mutex_unlock(&rapid_gc_mutex);
+}
+
+static void rapid_gc_sbi_del(struct f2fs_sb_info *sbi)
+{
+	mutex_lock(&rapid_gc_mutex);
+	list_del_init(&sbi->rapid_gc_list);
+	mutex_unlock(&rapid_gc_mutex);
+}
+
+static void rapid_gc_apply(void)
+{
+	struct f2fs_sb_info *sbi;
+	bool active = !rapid_gc_screen_on && power_supply_is_system_supplied() > 0;
+
+	if (active)
+		__pm_stay_awake(rapid_gc_ws);
+	else
+		__pm_relax(rapid_gc_ws);
+
+	mutex_lock(&rapid_gc_mutex);
+	list_for_each_entry(sbi, &rapid_gc_sbi_list, rapid_gc_list) {
+		if (!sbi->gc_thread)
+			continue;
+		if (active) {
+			spin_lock(&sbi->gc_urgent_high_lock);
+			sbi->gc_urgent_high_limited = true;
+			sbi->gc_urgent_high_remaining = RAPID_GC_TRIALS;
+			spin_unlock(&sbi->gc_urgent_high_lock);
+			sbi->gc_mode = GC_URGENT_HIGH;
+			sbi->gc_thread->gc_wake = 1;
+			wake_up_interruptible_all(&sbi->gc_thread->gc_wait_queue_head);
+			wake_up_discard_thread(sbi, true);
+			pr_info("rapidgc: %s: on\n", sbi->sb->s_id);
+		} else if (sbi->gc_mode == GC_URGENT_HIGH) {
+			sbi->gc_mode = GC_NORMAL;
+		}
+	}
+	mutex_unlock(&rapid_gc_mutex);
+}
+
+static void rapid_gc_work_fn(struct work_struct *w)
+{
+	rapid_gc_apply();
+}
+
+static int rapid_gc_fb_notify(struct notifier_block *nb,
+			      unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+	int blank;
+
+	if (event != FB_EVENT_BLANK || !evdata || !evdata->data)
+		return NOTIFY_DONE;
+	blank = *(int *)evdata->data;
+	if (blank == FB_BLANK_POWERDOWN)
+		rapid_gc_screen_on = false;
+	else if (blank == FB_BLANK_UNBLANK)
+		rapid_gc_screen_on = true;
+	else
+		return NOTIFY_DONE;
+	pr_info("rapidgc: screen %s\n", rapid_gc_screen_on ? "on" : "off");
+	queue_work(system_power_efficient_wq, &rapid_gc_work);
+	return NOTIFY_OK;
+}
+
+static struct notifier_block rapid_gc_fb_nb = {
+	.notifier_call = rapid_gc_fb_notify,
+};
+
+static int __init rapid_gc_init(void)
+{
+	INIT_WORK(&rapid_gc_work, rapid_gc_work_fn);
+	rapid_gc_ws = wakeup_source_create("f2fs_rapid_gc");
+	if (rapid_gc_ws)
+		wakeup_source_add(rapid_gc_ws);
+	fb_register_client(&rapid_gc_fb_nb);
+	return 0;
+}
+late_initcall(rapid_gc_init);
