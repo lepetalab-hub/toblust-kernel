@@ -75,6 +75,11 @@
 
 #include "cpupri.h"
 #include "cpudeadline.h"
+/* RT IPI pull logic requires IRQ_WORK */
+#if defined(CONFIG_IRQ_WORK) && defined(CONFIG_SMP)
+# define HAVE_RT_PUSH_IPI
+#endif
+
 #include "features.h"
 
 #ifdef CONFIG_SCHED_DEBUG
@@ -663,10 +668,6 @@ static inline int rt_bandwidth_enabled(void)
 	return sysctl_sched_rt_runtime >= 0;
 }
 
-/* RT IPI pull logic requires IRQ_WORK */
-#if defined(CONFIG_IRQ_WORK) && defined(CONFIG_SMP)
-# define HAVE_RT_PUSH_IPI
-#endif
 
 /* Real-Time classes' related field in a runqueue: */
 struct rt_rq {
