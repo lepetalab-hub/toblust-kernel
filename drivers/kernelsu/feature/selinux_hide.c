@@ -616,7 +616,7 @@ static int selinux_hide_status_feature_set(u64 value)
 	else
 		ksu_selinux_hide_enable();
 
-	pr_info("ksu_selinux_hide: set to %d\n", enable);
+	pr_info("ksu_selinux_hide: set to %d caller pid=%d comm=%s\n", enable, current->pid, current->comm);
 	return 0;
 }
 
