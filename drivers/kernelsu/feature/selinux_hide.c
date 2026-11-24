@@ -115,6 +115,24 @@ out_unlock:
 	return status;
 }
 
+/* Dipanggil dari selinux_setprocattr() (security/selinux/hooks.c). Hanya caller non-root. */
+bool ksu_selinux_hide_context_is_hidden(const void *value, size_t size)
+{
+        char buf[160];
+
+        if (!value || !size || size >= sizeof(buf))
+                return false;
+        if (current_uid().val < 10000)
+                return false;
+
+        memcpy(buf, value, size);
+        buf[size] = '\0';
+        if (size > 0 && buf[size - 1] == '\n')
+                buf[size - 1] = '\0';
+
+        return ksu_should_destroy_context(buf);
+}
+
 void ksu_add_probe_to_list(u32 cmd, const char *args[])
 {
 	if (!args || !args[0])
