@@ -2191,20 +2191,20 @@ static bool rapid_gc_screen_on = true;
 static struct wakeup_source *rapid_gc_ws;
 static struct work_struct rapid_gc_work;
 
-static int rapid_gc_sb_apply(struct super_block *sb, void *arg)
+static void rapid_gc_sb_apply(struct super_block *sb, void *arg)
 {
 	struct f2fs_sb_info *sbi;
 	bool active = *(bool *)arg;
 
 	if (strcmp(sb->s_type->name, "f2fs"))
-		return 0;
+		return;
 	if (f2fs_readonly(sb))
-		return 0;
+		return;
 	sbi = F2FS_SB(sb);
 
 	if (active) {
 		if (!sbi->gc_thread && f2fs_start_gc_thread(sbi))
-			return 0;
+			return;
 		spin_lock(&sbi->gc_urgent_high_lock);
 		sbi->gc_urgent_high_limited = true;
 		sbi->gc_urgent_high_remaining = RAPID_GC_TRIALS;
@@ -2221,7 +2221,7 @@ static int rapid_gc_sb_apply(struct super_block *sb, void *arg)
 		    !test_opt(sbi, GC_MERGE))
 			f2fs_stop_gc_thread(sbi);
 	}
-	return 0;
+	return;
 }
 
 static void rapid_gc_apply(void)
