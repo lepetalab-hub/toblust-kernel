@@ -108,7 +108,7 @@ static int set_vma_reply(struct sk_buff *skb, struct vma_info *vma)
 	aggr = PROCESS_MEM_TYPE_AGGR_VMA;
 
 	rc = -EINVAL;
-	na = nla_nest_start_noflag(skb, aggr);
+	na = nla_nest_start(skb, aggr);
 	if (!na)
 		goto err;
 
@@ -218,7 +218,7 @@ static int fill_mm(u32 pid, struct mm_info *mm)
 
 static int copyout(void __user *to, const void *from, size_t n)
 {
-	if (access_ok(to, n)) {
+	if (access_ok(VERIFY_WRITE, to, n)) {
 		kasan_check_read(from, n);
 		n = raw_copy_to_user(to, from, n);
 	}
@@ -227,7 +227,7 @@ static int copyout(void __user *to, const void *from, size_t n)
 
 static int copyin(void *to, const void __user *from, size_t n)
 {
-	if (access_ok(from, n)) {
+	if (access_ok(VERIFY_READ, from, n)) {
 		kasan_check_write(to, n);
 		n = raw_copy_from_user(to, from, n);
 	}
@@ -288,6 +288,18 @@ static int rw_page_at(struct page* page, unsigned offset,
 
 done:
 	return wanted - bytes;
+}
+
+/* 4.19 has no put_user_pages_dirty_lock(); release pinned pages by hand. */
+static void release_pinned_pages(struct page **pages, long npages, int dirty)
+{
+	long i;
+
+	for (i = 0; i < npages; i++) {
+		if (dirty)
+			set_page_dirty_lock(pages[i]);
+		put_page(pages[i]);
+	}
 }
 
 static int vm_rw_pages(struct page **pages, unsigned offset,
@@ -398,8 +410,7 @@ static int vm_rw_address_core(unsigned long addr, u32 len, unsigned long buff_ad
 		pa += pinned_pages * PAGE_SIZE;
 
 		/* If vm_write is set, the pages need to be made dirty: */
-		put_user_pages_dirty_lock(process_pages, pinned_pages,
-					    vm_write);
+		release_pinned_pages(process_pages, pinned_pages, vm_write);
 	}
 	if (rw_bytes)
 		*rw_bytes = total_rw_bytes;
@@ -425,7 +436,7 @@ static int vm_rw_address(u32 pid, u64 address, u32 size, u64 buff_addr, int vm_w
 		return -EINVAL;
 	}
 
-	if (unlikely(!access_ok((void*)buff_addr, size)))
+	if (unlikely(!access_ok(vm_write ? VERIFY_READ : VERIFY_WRITE, (void*)buff_addr, size)))
 	{
 		return -EFAULT;
 	}
