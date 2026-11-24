@@ -5,8 +5,8 @@ set -e
 [ ! -e "toolchain" ] && echo "Make toolchain avaliable at $(pwd)/toolchain" && exit
 
 
-export KBUILD_BUILD_USER=shadow
-export KBUILD_BUILD_HOST=elite
+export KBUILD_BUILD_USER=bob
+export KBUILD_BUILD_HOST=levet
 
 PATH=$PWD/toolchain/bin:$PATH
 
