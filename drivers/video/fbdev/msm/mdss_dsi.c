@@ -1333,6 +1333,10 @@ panel_power_ctrl:
 	    && (panel_info->dfps_update == DFPS_SUSPEND_RESUME_MODE)
 	    && (panel_info->new_fps != panel_info->mipi.frame_rate))
 		panel_info->mipi.frame_rate = panel_info->new_fps;
+		{
+			extern unsigned int adreno_panel_refresh_rate;
+			adreno_panel_refresh_rate = panel_info->mipi.frame_rate;
+		}
 
 	/* Initialize Max Packet size for DCS reads */
 	ctrl_pdata->cur_max_pkt_size = 0;

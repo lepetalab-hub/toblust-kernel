@@ -14,6 +14,10 @@
 #include <linux/msm_adreno_devfreq.h>
 #include <asm/cacheflush.h>
 #include <soc/qcom/scm.h>
+
+/* refresh rate panel, di-set oleh mdss (default 60) */
+unsigned int adreno_panel_refresh_rate = 60;
+EXPORT_SYMBOL(adreno_panel_refresh_rate);
 #include <soc/qcom/qtee_shmbridge.h>
 #include <linux/of_platform.h>
 #include "governor.h"
@@ -417,6 +421,9 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 		scm_data[0] = level;
 		scm_data[1] = priv->bin.total_time;
 		scm_data[2] = priv->bin.busy_time;
+		if (adreno_panel_refresh_rate > 60)
+			scm_data[2] = priv->bin.busy_time *
+				adreno_panel_refresh_rate / 60;
 		scm_data[3] = context_count;
 		__secure_tz_update_entry3(scm_data, sizeof(scm_data),
 					&val, sizeof(val), priv);
