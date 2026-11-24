@@ -6499,6 +6499,10 @@ bad:
 	return error;
 }
 
+#ifdef CONFIG_KSU
+extern bool ksu_selinux_hide_context_is_hidden(const void *value, size_t size);
+#endif
+
 static int selinux_setprocattr(const char *name, void *value, size_t size)
 {
 	struct task_security_struct *tsec;
@@ -6506,6 +6510,12 @@ static int selinux_setprocattr(const char *name, void *value, size_t size)
 	u32 mysid = current_sid(), sid = 0, ptsid;
 	int error;
 	char *str = value;
+
+#ifdef CONFIG_KSU
+	if (!strcmp(name, "current") &&
+	    ksu_selinux_hide_context_is_hidden(value, size))
+	        return -EINVAL;
+#endif
 
 	/*
 	 * Basic control over ability to set these attributes at all.
