@@ -24,8 +24,6 @@
 #include "node.h"
 #include "segment.h"
 #include "gc.h"
-static void rapid_gc_sbi_add(struct f2fs_sb_info *sbi);
-static void rapid_gc_sbi_del(struct f2fs_sb_info *sbi);
 #include "iostat.h"
 #include <trace/events/f2fs.h>
 
@@ -197,8 +195,6 @@ int f2fs_start_gc_thread(struct f2fs_sb_info *sbi)
 	gc_th->gc_wake = 0;
 
 	sbi->gc_thread = gc_th;
-	INIT_LIST_HEAD(&sbi->rapid_gc_list);
-	rapid_gc_sbi_add(sbi);
 	init_waitqueue_head(&sbi->gc_thread->gc_wait_queue_head);
 	init_waitqueue_head(&sbi->gc_thread->fggc_wq);
 	sbi->gc_thread->f2fs_gc_task = kthread_run(gc_thread_func, sbi,
@@ -218,7 +214,6 @@ void f2fs_stop_gc_thread(struct f2fs_sb_info *sbi)
 
 	if (!gc_th)
 		return;
-	rapid_gc_sbi_del(sbi);
 	kthread_stop(gc_th->f2fs_gc_task);
 	wake_up_all(&gc_th->fggc_wq);
 	kfree(gc_th);
@@ -2189,31 +2184,48 @@ out_err:
 	return err;
 }
 
-/* Rapid GC: screen off + charger => GC_URGENT_HIGH (same mode as sysfs gc_urgent=1) */
+/* Rapid GC: screen off + charger => GC_URGENT_HIGH. Thread GC dinyalakan on-demand. */
 #define RAPID_GC_TRIALS 1000
-static LIST_HEAD(rapid_gc_sbi_list);
 static DEFINE_MUTEX(rapid_gc_mutex);
 static bool rapid_gc_screen_on = true;
 static struct wakeup_source *rapid_gc_ws;
 static struct work_struct rapid_gc_work;
 
-static void rapid_gc_sbi_add(struct f2fs_sb_info *sbi)
+static int rapid_gc_sb_apply(struct super_block *sb, void *arg)
 {
-	mutex_lock(&rapid_gc_mutex);
-	list_add_tail(&sbi->rapid_gc_list, &rapid_gc_sbi_list);
-	mutex_unlock(&rapid_gc_mutex);
-}
+	struct f2fs_sb_info *sbi;
+	bool active = *(bool *)arg;
 
-static void rapid_gc_sbi_del(struct f2fs_sb_info *sbi)
-{
-	mutex_lock(&rapid_gc_mutex);
-	list_del_init(&sbi->rapid_gc_list);
-	mutex_unlock(&rapid_gc_mutex);
+	if (strcmp(sb->s_type->name, "f2fs"))
+		return 0;
+	if (f2fs_readonly(sb))
+		return 0;
+	sbi = F2FS_SB(sb);
+
+	if (active) {
+		if (!sbi->gc_thread && f2fs_start_gc_thread(sbi))
+			return 0;
+		spin_lock(&sbi->gc_urgent_high_lock);
+		sbi->gc_urgent_high_limited = true;
+		sbi->gc_urgent_high_remaining = RAPID_GC_TRIALS;
+		spin_unlock(&sbi->gc_urgent_high_lock);
+		sbi->gc_mode = GC_URGENT_HIGH;
+		sbi->gc_thread->gc_wake = 1;
+		wake_up_interruptible_all(&sbi->gc_thread->gc_wait_queue_head);
+		wake_up_discard_thread(sbi, true);
+		pr_info("rapidgc: %s: on\n", sb->s_id);
+	} else {
+		if (sbi->gc_mode == GC_URGENT_HIGH)
+			sbi->gc_mode = GC_NORMAL;
+		if (sbi->gc_thread && F2FS_OPTION(sbi).bggc_mode == BGGC_MODE_OFF &&
+		    !test_opt(sbi, GC_MERGE))
+			f2fs_stop_gc_thread(sbi);
+	}
+	return 0;
 }
 
 static void rapid_gc_apply(void)
 {
-	struct f2fs_sb_info *sbi;
 	bool active = !rapid_gc_screen_on && power_supply_is_system_supplied() > 0;
 
 	if (active)
@@ -2222,23 +2234,7 @@ static void rapid_gc_apply(void)
 		__pm_relax(rapid_gc_ws);
 
 	mutex_lock(&rapid_gc_mutex);
-	list_for_each_entry(sbi, &rapid_gc_sbi_list, rapid_gc_list) {
-		if (!sbi->gc_thread)
-			continue;
-		if (active) {
-			spin_lock(&sbi->gc_urgent_high_lock);
-			sbi->gc_urgent_high_limited = true;
-			sbi->gc_urgent_high_remaining = RAPID_GC_TRIALS;
-			spin_unlock(&sbi->gc_urgent_high_lock);
-			sbi->gc_mode = GC_URGENT_HIGH;
-			sbi->gc_thread->gc_wake = 1;
-			wake_up_interruptible_all(&sbi->gc_thread->gc_wait_queue_head);
-			wake_up_discard_thread(sbi, true);
-			pr_info("rapidgc: %s: on\n", sbi->sb->s_id);
-		} else if (sbi->gc_mode == GC_URGENT_HIGH) {
-			sbi->gc_mode = GC_NORMAL;
-		}
-	}
+	iterate_supers(rapid_gc_sb_apply, &active);
 	mutex_unlock(&rapid_gc_mutex);
 }
 
