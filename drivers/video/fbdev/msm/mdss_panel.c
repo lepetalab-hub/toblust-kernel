@@ -638,6 +638,10 @@ void mdss_panel_info_from_timing(struct mdss_panel_timing *pt,
 	pinfo->lm_widths[1] = pt->lm_widths[1];
 
 	pinfo->mipi.frame_rate = pt->frame_rate;
+	{
+		extern unsigned int adreno_panel_refresh_rate;
+		adreno_panel_refresh_rate = pinfo->mipi.frame_rate;
+	}
 	pinfo->edp.frame_rate = pinfo->mipi.frame_rate;
 
 	pinfo->dsc = pt->dsc;
