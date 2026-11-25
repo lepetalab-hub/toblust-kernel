@@ -4,16 +4,15 @@
  * Single read/write via arm64 page-table walk.
  */
 #include <linux/errno.h>
+#include <linux/kernel.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include <linux/sched/mm.h>
 #include <linux/sched/task.h>
 #include <linux/mm.h>
-#include <linux/mmap_lock.h>
 #include <linux/pid.h>
 #include <linux/cred.h>
 #include <linux/string.h>
-#include <linux/minmax.h>
 #include <linux/hmkpm.h>
 #include <asm/pgtable.h>
 
@@ -51,7 +50,7 @@ static int hmkpm_walk(struct mm_struct *mm, unsigned long va,
 	pud = pud_offset(p4d, va);
 	if (pud_none(*pud))
 		return -EFAULT;
-	if (pud_leaf(*pud)) {                       /* 1GB block */
+	if (pud_huge(*pud)) {                       /* 1GB block */
 		if (!pud_present(*pud) || (write && !pud_write(*pud)))
 			return -EACCES;
 		base = PFN_PHYS(pud_pfn(*pud)) + (va & ~PUD_MASK);
@@ -61,7 +60,7 @@ static int hmkpm_walk(struct mm_struct *mm, unsigned long va,
 	pmd = pmd_offset(pud, va);
 	if (pmd_none(*pmd))
 		return -EFAULT;
-	if (pmd_leaf(*pmd)) {                       /* 2MB block */
+	if (pmd_huge(*pmd)) {                       /* 2MB block */
 		if (!pmd_present(*pmd) || (write && !pmd_write(*pmd)))
 			return -EACCES;
 		base = PFN_PHYS(pmd_pfn(*pmd)) + (va & ~PMD_MASK);
@@ -98,7 +97,7 @@ static ssize_t hmkpm_rw_mm(struct mm_struct *mm, unsigned long va, size_t len,
 		if (write && copy_from_user(bounce, ubuf, chunk))
 			return total ? total : -EFAULT;
 
-		mmap_read_lock(mm);
+		down_read(&mm->mmap_sem);
 		rc = hmkpm_walk(mm, va, &pa, write);
 		if (!rc) {
 			void *kva = __va(pa);
@@ -108,7 +107,7 @@ static ssize_t hmkpm_rw_mm(struct mm_struct *mm, unsigned long va, size_t len,
 			else
 				memcpy(bounce, kva, chunk);
 		}
-		mmap_read_unlock(mm);
+		up_read(&mm->mmap_sem);
 
 		if (rc)
 			return total ? total : rc;
@@ -161,7 +160,7 @@ long hmkpm_dispatch(u64 magic, void __user *buf, unsigned long total)
 	if (req.addr > ULONG_MAX - req.size)
 		return -EINVAL;
 
-	task = find_get_task_by_vpid(req.pid);
+	rcu_read_lock(); task = find_task_by_vpid(req.pid); if (task) get_task_struct(task); rcu_read_unlock();
 	if (!task)
 		return -ESRCH;
 	mm = get_task_mm(task);
