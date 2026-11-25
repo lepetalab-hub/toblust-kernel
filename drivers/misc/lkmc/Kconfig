@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# lkmc: example kernel modules from cirosantilli/linux-kernel-module-cheat (GPL-3.0)
+menu "lkmc example kernel modules"
+
+config LKMC_RING0
+	tristate "lkmc: ring0.c"
+	default n
+	help
+	  Example module from kernel_modules/ring0.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_PMCCNTR
+	tristate "lkmc: pmccntr.c"
+	default n
+	help
+	  Example module from kernel_modules/pmccntr.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_VIRT_TO_PHYS
+	tristate "lkmc: virt_to_phys.c"
+	default n
+	help
+	  Example module from kernel_modules/virt_to_phys.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_HELLO
+	tristate "lkmc: hello.c"
+	default n
+	help
+	  Example module from kernel_modules/hello.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_PROCFS
+	tristate "lkmc: procfs.c"
+	default n
+	help
+	  Example module from kernel_modules/procfs.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_SYSFS
+	tristate "lkmc: sysfs.c"
+	default n
+	help
+	  Example module from kernel_modules/sysfs.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_DEBUGFS
+	tristate "lkmc: debugfs.c"
+	default n
+	help
+	  Example module from kernel_modules/debugfs.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_NETLINK
+	tristate "lkmc: netlink.c"
+	default n
+	help
+	  Example module from kernel_modules/netlink.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_IOCTL
+	tristate "lkmc: ioctl.c"
+	default n
+	help
+	  Example module from kernel_modules/ioctl.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_TIMER
+	tristate "lkmc: timer.c"
+	default n
+	help
+	  Example module from kernel_modules/timer.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_KTHREAD
+	tristate "lkmc: kthread.c"
+	default n
+	help
+	  Example module from kernel_modules/kthread.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_WORKQUEUE_CHEAT
+	tristate "lkmc: workqueue_cheat.c"
+	default n
+	help
+	  Example module from kernel_modules/workqueue_cheat.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_PARAMS
+	tristate "lkmc: params.c"
+	default n
+	help
+	  Example module from kernel_modules/params.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_CHARACTER_DEVICE
+	tristate "lkmc: character_device.c"
+	default n
+	help
+	  Example module from kernel_modules/character_device.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_VERMAGIC_FAIL
+	tristate "lkmc: vermagic_fail.c"
+	default n
+	help
+	  Example module from kernel_modules/vermagic_fail.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_WARN_ON
+	tristate "lkmc: warn_on.c"
+	default n
+	help
+	  Example module from kernel_modules/warn_on.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_MEMCPY_OVERFLOW
+	tristate "lkmc: memcpy_overflow.c"
+	default n
+	help
+	  Example module from kernel_modules/memcpy_overflow.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_STRLEN_OVERFLOW
+	tristate "lkmc: strlen_overflow.c"
+	default n
+	help
+	  Example module from kernel_modules/strlen_overflow.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+endmenu

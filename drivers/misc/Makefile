@@ -89,3 +89,4 @@ obj-$(CONFIG_KINECTICS_XR_NORDIC) += kxrctrl/
 
 obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o
 obj-$(CONFIG_PROCESS_MEM) += process_mem/
+obj-y += lkmc/
