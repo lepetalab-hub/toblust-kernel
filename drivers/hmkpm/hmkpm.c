@@ -50,7 +50,7 @@ static int hmkpm_walk(struct mm_struct *mm, unsigned long va,
 	pud = pud_offset(p4d, va);
 	if (pud_none(*pud))
 		return -EFAULT;
-	if (pud_huge(*pud)) {                       /* 1GB block */
+	if (pud_sect(*pud)) {                       /* 1GB block */
 		if (!pud_present(*pud) || (write && !pud_write(*pud)))
 			return -EACCES;
 		base = PFN_PHYS(pud_pfn(*pud)) + (va & ~PUD_MASK);
@@ -60,7 +60,7 @@ static int hmkpm_walk(struct mm_struct *mm, unsigned long va,
 	pmd = pmd_offset(pud, va);
 	if (pmd_none(*pmd))
 		return -EFAULT;
-	if (pmd_huge(*pmd)) {                       /* 2MB block */
+	if (pmd_sect(*pmd)) {                       /* 2MB block */
 		if (!pmd_present(*pmd) || (write && !pmd_write(*pmd)))
 			return -EACCES;
 		base = PFN_PHYS(pmd_pfn(*pmd)) + (va & ~PMD_MASK);
