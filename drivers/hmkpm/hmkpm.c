@@ -125,6 +125,7 @@ static ssize_t hmkpm_rw_mm(struct mm_struct *mm, unsigned long va, size_t len,
 
 long hmkpm_dispatch(u64 magic, void __user *buf, unsigned long total)
 {
+	pr_info("HMKPM-TRACE dispatch magic=%llx\n", magic);
 	struct hmkpm_req req;
 	struct task_struct *task;
 	struct mm_struct *mm;
