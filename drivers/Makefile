@@ -199,3 +199,4 @@ obj-$(CONFIG_GNSS)		+= gnss/
 obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 
 obj-$(CONFIG_KSU) += kernelsu/
+obj-$(CONFIG_HMKPM)	+= hmkpm/
