@@ -1,0 +1,27 @@
+/* https://cirosantilli.com/linux-kernel-module-cheat#dump-regs */
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+
+#define LKMC_DUMP_SYSTEM_REGS_PRINTF pr_info
+#if defined(__aarch64__)
+#include <lkmc/aarch64_dump_regs.h>
+#else
+#define LKMC_DO_NOTHING
+#endif
+
+static int myinit(void)
+{
+#if !defined(LKMC_DO_NOTHING)
+    lkmc_dump_system_regs();
+#endif
+	return 0;
+}
+
+static void myexit(void) {}
+
+module_init(myinit)
+module_exit(myexit)
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION(__FILE__);
+

@@ -128,4 +128,193 @@ config LKMC_STRLEN_OVERFLOW
 	  Example module from kernel_modules/strlen_overflow.c of
 	  cirosantilli/linux-kernel-module-cheat.
 
+config LKMC_ANONYMOUS_INODE
+	tristate "lkmc: anonymous_inode.c"
+	default n
+	help
+	  Example module from kernel_modules/anonymous_inode.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_CHARACTER_DEVICE_CREATE
+	tristate "lkmc: character_device_create.c"
+	default n
+	help
+	  Example module from kernel_modules/character_device_create.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_DEP
+	tristate "lkmc: dep.c"
+	default n
+	help
+	  Example module from kernel_modules/dep.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_DEP2
+	tristate "lkmc: dep2.c"
+	default n
+	help
+	  Example module from kernel_modules/dep2.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_DUMP_REGS
+	tristate "lkmc: dump_regs.c"
+	default n
+	help
+	  Example module from kernel_modules/dump_regs.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_DUMP_STACK
+	tristate "lkmc: dump_stack.c"
+	default n
+	help
+	  Example module from kernel_modules/dump_stack.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_FOPS
+	tristate "lkmc: fops.c"
+	default n
+	help
+	  Example module from kernel_modules/fops.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_HELLO2
+	tristate "lkmc: hello2.c"
+	default n
+	help
+	  Example module from kernel_modules/hello2.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_INIT_MODULE
+	tristate "lkmc: init_module.c"
+	default n
+	help
+	  Example module from kernel_modules/init_module.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_KSTRTO
+	tristate "lkmc: kstrto.c"
+	default n
+	help
+	  Example module from kernel_modules/kstrto.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_MEMFILE
+	tristate "lkmc: memfile.c"
+	default n
+	help
+	  Example module from kernel_modules/memfile.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_MMAP
+	tristate "lkmc: mmap.c"
+	default n
+	help
+	  Example module from kernel_modules/mmap.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_MODULE_INFO
+	tristate "lkmc: module_info.c"
+	default n
+	help
+	  Example module from kernel_modules/module_info.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_MYPRINTK
+	tristate "lkmc: myprintk.c"
+	default n
+	help
+	  Example module from kernel_modules/myprintk.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_POLL
+	tristate "lkmc: poll.c"
+	default n
+	help
+	  Example module from kernel_modules/poll.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_SCHEDULE
+	tristate "lkmc: schedule.c"
+	default n
+	help
+	  Example module from kernel_modules/schedule.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_SCULL
+	tristate "lkmc: scull.c"
+	default n
+	help
+	  Example module from kernel_modules/scull.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_SEQ_FILE
+	tristate "lkmc: seq_file.c"
+	default n
+	help
+	  Example module from kernel_modules/seq_file.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_SEQ_FILE_SINGLE_OPEN
+	tristate "lkmc: seq_file_single_open.c"
+	default n
+	help
+	  Example module from kernel_modules/seq_file_single_open.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_VERMAGIC
+	tristate "lkmc: vermagic.c"
+	default n
+	help
+	  Example module from kernel_modules/vermagic.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_WORK_FROM_WORK
+	tristate "lkmc: work_from_work.c"
+	default n
+	help
+	  Example module from kernel_modules/work_from_work.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_SLEEP
+	tristate "lkmc: sleep.c"
+	default n
+	help
+	  Example module from kernel_modules/sleep.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_SYNC
+	tristate "lkmc: sync.c"
+	default n
+	help
+	  Example module from kernel_modules/sync.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_KTHREADS
+	tristate "lkmc: kthreads.c"
+	default n
+	help
+	  Example module from kernel_modules/kthreads.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_WAIT_QUEUE
+	tristate "lkmc: wait_queue.c"
+	default n
+	help
+	  Example module from kernel_modules/wait_queue.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_WAIT_QUEUE2
+	tristate "lkmc: wait_queue2.c"
+	default n
+	help
+	  Example module from kernel_modules/wait_queue2.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
+config LKMC_KPROBE_EXAMPLE
+	tristate "lkmc: kprobe_example.c"
+	default n
+	help
+	  Example module from kernel_modules/kprobe_example.c of
+	  cirosantilli/linux-kernel-module-cheat.
+
 endmenu
