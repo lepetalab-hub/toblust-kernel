@@ -1,0 +1,7 @@
+config HMKPM
+	bool "HuntMemory page-table memory I/O (HMKPM)"
+	depends on ARM64
+	default n
+	help
+	  Built-in port of HuntMemory-KPM. Exposes single process
+	  read/write through the getresuid magic-code channel.
