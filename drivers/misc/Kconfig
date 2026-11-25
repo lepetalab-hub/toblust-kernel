@@ -699,4 +699,3 @@ config PROCESS_MEM
 	  the virtual memory of user-space processes. Used by the
 	  linux-process_mem user-space library.
 	  If unsure, say N.
-source "drivers/misc/lkmc/Kconfig"
