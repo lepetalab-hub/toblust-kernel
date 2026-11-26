@@ -2,8 +2,15 @@ config KERNEL_HACK
 	tristate "Kernel Hack Driver (stealth read/write)"
 	default m
 	help
-	  Driver kernel untuk membaca dan menulis memori proses secara langsung
-	  melalui fisical address. Mendukung penyembunyian diri dari
-	  /proc/modules, /proc/misc, /proc/kallsyms, /sys/module/, dan lsmod.
+	  Driver kernel untuk membaca dan menulis memori proses secara langsung.
+	  Mendukung penyembunyian diri dari /proc/modules, /proc/misc,
+	  /proc/kallsyms, /sys/module/, dan lsmod.
 	  Nama device node dibuat acak setiap kali driver dimuat.
-	  Pilih M untuk membangun sebagai loadable module (.ko).
+
+config HW_BREAKPOINT_MODE
+	bool "Hardware Breakpoint support in kernel_hack"
+	depends on KERNEL_HACK && HW_BREAKPOINT
+	default y
+	help
+	  Tambahkan dukungan hardware breakpoint ke driver kernel_hack.
+	  Membutuhkan CONFIG_HW_BREAKPOINT=y di kernel.
