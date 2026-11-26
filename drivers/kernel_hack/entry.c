@@ -2,15 +2,16 @@
 #include <linux/tty.h>
 #include <linux/miscdevice.h>
 #include <linux/proc_fs.h>
+#include <linux/cdev.h>
 #include "comm.h"
 #include "memory.h"
 #include "process.h"
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
+#if defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0))
 	MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 #endif
 
-long dispatch_ioctl(struct file* const file, unsigned int const cmd,
+long dispatch_ioctl(struct file *const file, unsigned int const cmd,
 		    unsigned long const arg)
 {
 	static COPY_MEMORY cm;
@@ -19,24 +20,25 @@ long dispatch_ioctl(struct file* const file, unsigned int const cmd,
 
 	switch (cmd) {
 	case OP_READ_MEM:
-		if (copy_from_user(&cm, (void __user*)arg, sizeof(cm)) != 0)
-			return -1;
-		if (read_process_memory(cm.pid, cm.addr, cm.buffer, cm.size) == false)
-			return -1;
+		if (copy_from_user(&cm, (void __user *)arg, sizeof(cm)) != 0)
+			return -EFAULT;
+		if (!read_process_memory(cm.pid, cm.addr, cm.buffer, cm.size))
+			return -EIO;
 		break;
 	case OP_WRITE_MEM:
-		if (copy_from_user(&cm, (void __user*)arg, sizeof(cm)) != 0)
-			return -1;
-		if (write_process_memory(cm.pid, cm.addr, cm.buffer, cm.size) == false)
-			return -1;
+		if (copy_from_user(&cm, (void __user *)arg, sizeof(cm)) != 0)
+			return -EFAULT;
+		if (!write_process_memory(cm.pid, cm.addr, cm.buffer, cm.size))
+			return -EIO;
 		break;
 	case OP_MODULE_BASE:
-		if (copy_from_user(&mb, (void __user*)arg, sizeof(mb)) != 0
-		    || copy_from_user(name, (void __user*)mb.name, sizeof(name) - 1) != 0)
-			return -1;
+		if (copy_from_user(&mb, (void __user *)arg, sizeof(mb)) != 0 ||
+		    copy_from_user(name, (void __user *)mb.name,
+				   sizeof(name) - 1) != 0)
+			return -EFAULT;
 		mb.base = get_module_base(mb.pid, name);
-		if (copy_to_user((void __user*)arg, &mb, sizeof(mb)) != 0)
-			return -1;
+		if (copy_to_user((void __user *)arg, &mb, sizeof(mb)) != 0)
+			return -EFAULT;
 		break;
 	default:
 		break;
@@ -52,35 +54,41 @@ static struct file_operations dispatch_functions = {
 };
 
 struct mem_tool_device {
-	struct cdev   cdev;
+	struct cdev    cdev;
 	struct device *dev;
 	int            max;
 };
 
 static struct mem_tool_device *memdev;
-static struct list_head       *prev_module;
 static dev_t                   mem_tool_dev_t;
 static struct class           *mem_tool_class;
 static const char             *devicename;
 
+#ifdef MODULE
+/* Hanya relevan saat module dinamis — built-in tidak masuk module list */
+static struct list_head *prev_module;
+#endif
+
 int dispatch_open(struct inode *node, struct file *file)
 {
 	file->private_data = memdev;
+#ifdef MODULE
 	prev_module = __this_module.list.prev;
 	list_del_init(&__this_module.list); /* sembunyikan dari /proc/modules */
+#endif
 	device_destroy(mem_tool_class, mem_tool_dev_t);
 	class_destroy(mem_tool_class);
-	pr_debug("kernel_hack: opened\n");
 	return 0;
 }
 
 int dispatch_close(struct inode *node, struct file *file)
 {
+#ifdef MODULE
 	list_add(&__this_module.list, prev_module);
+#endif
 	mem_tool_class = class_create(THIS_MODULE, devicename);
-	memdev->dev = device_create(mem_tool_class, NULL, mem_tool_dev_t,
-				    NULL, "%s", devicename);
-	pr_debug("kernel_hack: closed\n");
+	memdev->dev    = device_create(mem_tool_class, NULL, mem_tool_dev_t,
+				       NULL, "%s", devicename);
 	return 0;
 }
 
@@ -88,7 +96,7 @@ static int __init driver_entry(void)
 {
 	int ret;
 
-	devicename = get_rand_str(); /* nama device node acak tiap load */
+	devicename = get_rand_str();
 
 	ret = alloc_chrdev_region(&mem_tool_dev_t, 0, 1, devicename);
 	if (ret < 0) {
@@ -128,16 +136,14 @@ static int __init driver_entry(void)
 		goto err_class;
 	}
 
-	/* Hapus entry proc yang bisa jadi sidik jari */
-	if (!IS_ERR(filp_open("/proc/sched_debug", O_RDONLY, 0)))
-		remove_proc_subtree("sched_debug", NULL);
-	if (!IS_ERR(filp_open("/proc/uevents_records", O_RDONLY, 0)))
-		remove_proc_entry("uevents_records", NULL);
+	/* Hapus proc entries yang bisa jadi sidik jari */
+	remove_proc_subtree("sched_debug", NULL);
+	remove_proc_entry("uevents_records", NULL);
 
 	/* Sembunyikan dari /proc/devices */
 	unregister_chrdev_region(mem_tool_dev_t, 1);
 
-	pr_debug("kernel_hack: loaded as /dev/%s\n", devicename);
+	pr_info("kernel_hack: ready at /dev/%s\n", devicename);
 	return 0;
 
 err_class:
@@ -151,6 +157,7 @@ err_unregister:
 	return ret;
 }
 
+#ifdef MODULE
 static void __exit driver_unload(void)
 {
 	device_destroy(mem_tool_class, mem_tool_dev_t);
@@ -158,10 +165,12 @@ static void __exit driver_unload(void)
 	cdev_del(&memdev->cdev);
 	kfree(memdev);
 	unregister_chrdev_region(mem_tool_dev_t, 1);
-	pr_debug("kernel_hack: unloaded\n");
 }
-
 module_init(driver_entry);
 module_exit(driver_unload);
+#else
+/* Built-in: jalankan setelah semua proc entry terbentuk */
+late_initcall(driver_entry);
+#endif
 
 MODULE_LICENSE("GPL");
