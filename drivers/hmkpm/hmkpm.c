@@ -8,7 +8,6 @@
 #include <linux/init.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
-#include <linux/kstrtox.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include <linux/sched/mm.h>
