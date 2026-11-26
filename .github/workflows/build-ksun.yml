@@ -59,6 +59,7 @@ jobs:
           cp out/arch/arm64/boot/Image* artifacts/ 2>/dev/null || true
           find out/arch/arm64/boot/dts -name "*.dtb" -exec cp {} artifacts/ \; 2>/dev/null || true
           cp ksu-config.txt build.log artifacts/ 2>/dev/null || true
+          find out/drivers/kernel_hack -name "*.ko" -exec cp {} artifacts/ \; 2>/dev/null || true
 
       - name: Upload
         if: always()
