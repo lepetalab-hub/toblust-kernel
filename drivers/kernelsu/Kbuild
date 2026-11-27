@@ -111,6 +111,7 @@ endif
 
 ccflags-y += -I$(KSU_KERNEL_DIR) -I$(KSU_KERNEL_DIR)/include
 ccflags-y += -include $(KSU_KERNEL_DIR)/include/compat_419.h
+ccflags-y += -ferror-limit=0
 
 ifeq ($(CONFIG_KSU_SUSFS),y)
 # SUSFS v2.4.0 makes the driver register the types and allow rules it injects.
