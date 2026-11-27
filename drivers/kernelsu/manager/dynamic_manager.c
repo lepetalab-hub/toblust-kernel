@@ -1,4 +1,5 @@
 #include <linux/compiler.h>
+#include <linux/sched/task.h>
 #include <linux/cred.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
