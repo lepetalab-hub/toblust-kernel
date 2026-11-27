@@ -7,6 +7,7 @@
 #include <linux/slab.h>
 #include <linux/rculist.h>
 #include <linux/task_work.h>
+#include <linux/string.h>
 #include <linux/version.h>
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs.h>
@@ -76,9 +77,32 @@ static int ksu_handle_inode_event(struct fsnotify_mark *mark, u32 mask, struct i
     return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+/*
+ * 4.19 fsnotify delivers child events to the watched directory's mark with
+ * the child name in file_name, and no dir/qstr split. Adapt to the handler.
+ */
+static int ksu_handle_event_419(struct fsnotify_group *group, struct inode *inode, u32 mask,
+                                const void *data, int data_type, const unsigned char *file_name,
+                                u32 cookie, struct fsnotify_iter_info *iter_info)
+{
+    struct qstr name;
+
+    if (!file_name)
+        return 0;
+    name.name = file_name;
+    name.len = strlen((const char *)file_name);
+    return ksu_handle_inode_event(NULL, mask, inode, NULL, &name, cookie);
+}
+
+static const struct fsnotify_ops ksu_ops = {
+    .handle_event = ksu_handle_event_419,
+};
+#else
 static const struct fsnotify_ops ksu_ops = {
     .handle_inode_event = ksu_handle_inode_event,
 };
+#endif
 
 static int add_mark_on_inode(struct inode *inode, u32 mask, struct fsnotify_mark **out)
 {

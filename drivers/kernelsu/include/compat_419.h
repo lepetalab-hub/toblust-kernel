@@ -64,4 +64,9 @@ static inline int copy_to_kernel_nofault(void *dst, const void *src, size_t size
 
 #endif /* LINUX_VERSION_CODE < 5.8 */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
+/* task_work_add(task, cb, bool notify) before 5.11; TWA_RESUME meant notify=true. */
+#define TWA_RESUME true
+#endif
+
 #endif /* __KSU_COMPAT_419_H */
