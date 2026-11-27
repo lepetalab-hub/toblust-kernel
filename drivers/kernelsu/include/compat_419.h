@@ -15,6 +15,12 @@
 	typedef char KSU_SA_CAT(ksu_sa_, __LINE__)[(expr) ? 1 : -1] __attribute__((unused))
 #endif
 
+#include <asm/unistd.h>
+#ifndef SECCOMP_ARCH_NATIVE_NR
+/* Pre-5.x seccomp headers lack this; __NR_syscalls is the native syscall count. */
+#define SECCOMP_ARCH_NATIVE_NR __NR_syscalls
+#endif
+
 #ifndef untagged_addr
 #define untagged_addr(addr) (addr)
 #endif
