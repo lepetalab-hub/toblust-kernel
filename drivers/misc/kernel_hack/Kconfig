@@ -1,0 +1,8 @@
+config KERNEL_HACK
+    tristate "Kernel Hack Driver (random-name RW)"
+    default y
+    help
+      Loadable character device that provides cross-process physical
+      memory read/write and module base resolution via ioctl.
+      Device name is randomised at each load; module removes itself
+      from /proc/modules while a client has the device open.
