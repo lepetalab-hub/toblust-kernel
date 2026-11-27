@@ -51,6 +51,11 @@ static inline int copy_to_user_nofault(void __user *dst, const void *src, size_t
 	return ret ? -EFAULT : 0;
 }
 
+static inline int copy_to_kernel_nofault(void *dst, const void *src, size_t size)
+{
+	return probe_kernel_write(dst, src, size);
+}
+
 #endif /* LINUX_VERSION_CODE < 5.8 */
 
 #endif /* __KSU_COMPAT_419_H */
