@@ -5,7 +5,9 @@
 #include <linux/preempt.h>
 #include <linux/printk.h>
 #include <linux/mm.h>
+#if __has_include(<linux/pgtable.h>)
 #include <linux/pgtable.h>
+#endif
 #include <linux/uaccess.h>
 #include <asm/current.h>
 #include <linux/cred.h>

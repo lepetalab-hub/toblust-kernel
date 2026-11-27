@@ -11,12 +11,20 @@
 #endif
 #include <crypto/hash.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+#if __has_include(<crypto/sha2.h>)
 #include <crypto/sha2.h>
 #else
 #include <crypto/sha.h>
 #endif
+#else
+#include <crypto/sha.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+#if __has_include(<linux/hex.h>)
 #include <linux/hex.h>
+#else
+#include <linux/kernel.h>
+#endif
 #endif
 
 #include "manager/apk_sign.h"
