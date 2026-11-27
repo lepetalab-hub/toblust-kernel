@@ -69,4 +69,17 @@ static inline int copy_to_kernel_nofault(void *dst, const void *src, size_t size
 #define TWA_RESUME true
 #endif
 
+static inline ssize_t strscpy_pad(char *dest, const char *src, size_t count)
+{
+	ssize_t r = strscpy(dest, src, count);
+
+	if (r >= 0 && (size_t)r < count)
+		memset(dest + r, 0, count - r);
+	return r;
+}
+
+#ifndef fallthrough
+#define fallthrough __attribute__((__fallthrough__))
+#endif
+
 #endif /* __KSU_COMPAT_419_H */
