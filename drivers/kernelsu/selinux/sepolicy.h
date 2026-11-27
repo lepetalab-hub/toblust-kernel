@@ -2,6 +2,7 @@
 #define __KSU_H_SEPOLICY
 
 #include <linux/types.h>
+#include <linux/version.h>
 
 #include "ss/policydb.h"
 
@@ -41,5 +42,9 @@ bool ksu_type_member(struct policydb *db, const char *src, const char *tgt, cons
 
 // File system labeling
 bool ksu_genfscon(struct policydb *db, const char *fs_name, const char *path, const char *ctx);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+struct policydb *ksu_clone_policydb(struct policydb *src, struct sidtab **out_sidtab);
+#endif
 
 #endif

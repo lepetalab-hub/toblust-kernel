@@ -12,6 +12,9 @@
 #include "selinux.h"
 #include "sepolicy.h"
 #include "ss/services.h"
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+#include "ss/sidtab.h"
+#endif
 #include "linux/lsm_audit.h" // IWYU pragma: keep
 #include "xfrm.h"
 
@@ -47,54 +50,9 @@ static void reset_avc_cache(u32 seqno)
     selinux_xfrm_notify_policyload();
 }
 
-void apply_kernelsu_rules()
+/* Rule injection on any policydb. Shared by the 5.10+ and 4.19 paths. */
+static void ksu_apply_rules_db(struct policydb *db)
 {
-    struct selinux_policy *pol, *old_pol;
-    struct policydb *db;
-
-    if (!getenforce()) {
-        pr_info("SELinux permissive or disabled, apply rules!\n");
-    }
-
-    mutex_lock(&selinux_state.policy_mutex);
-
-    old_pol = rcu_dereference_protected(selinux_state.policy, lockdep_is_held(&selinux_state.policy_mutex));
-    backup_sepolicy = ksu_dup_sepolicy(old_pol);
-    if (IS_ERR(backup_sepolicy)) {
-        pr_err("failed to create backup sepolicy: %ld\n", PTR_ERR(backup_sepolicy));
-        backup_sepolicy = NULL;
-    } else {
-        backup_sepolicy->sidtab = kzalloc(sizeof(*backup_sepolicy->sidtab), GFP_KERNEL);
-        if (!backup_sepolicy->sidtab) {
-            pr_err("failed to alloc backup sidtab\n");
-            ksu_destroy_sepolicy(backup_sepolicy);
-            backup_sepolicy = NULL;
-        } else {
-            int ret = policydb_load_isids(&backup_sepolicy->policydb, backup_sepolicy->sidtab);
-            if (ret) {
-                pr_err("failed to load isids for backup sepolicy: %d!\n", ret);
-                kfree(backup_sepolicy->sidtab);
-                ksu_destroy_sepolicy(backup_sepolicy);
-                backup_sepolicy = NULL;
-            } else {
-                pr_info("backup sepolicy success! latest_granting=%d\n", backup_sepolicy->latest_granting);
-            }
-        }
-    }
-    pol = ksu_dup_sepolicy(old_pol);
-    if (IS_ERR(pol)) {
-        pr_err("failed to dup selinux_policy: %ld\n", PTR_ERR(pol));
-        goto out_unlock;
-    }
-
-    db = &pol->policydb;
-
-#if !defined(CONFIG_KSU_SUSFS) || !defined(KSU_SUSFS_HAS_TYPE_REGISTRATION)
-    pol->latest_granting = old_pol->latest_granting + 1;
-    if (!ksu_set_original_types(db, &old_pol->policydb, pol->latest_granting))
-        pr_warn("failed to save original type metadata, use backup lookups\n");
-#endif
-
     ksu_type(db, KERNEL_SU_DOMAIN, "domain");
     ksu_permissive(db, KERNEL_SU_DOMAIN);
     ksu_typeattribute(db, KERNEL_SU_DOMAIN, "mlstrustedsubject");
@@ -175,6 +133,141 @@ void apply_kernelsu_rules()
     ksu_allow(db, "zygote", "labeledfs", "filesystem", "unmount");
 #endif
 
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+#if !defined(KSU_SUSFS_HAS_TYPE_REGISTRATION)
+#error "FinaSU 4.19 path requires SUSFS type registration (susfs_add_sus_type)"
+#endif
+
+static DEFINE_MUTEX(ksu_policy_mutex_419);
+
+/*
+ * Swap the new policydb and sidtab into the live selinux_ss. Only memcpy and
+ * pointer swaps run under the rwlock, as in 4.19 security_load_policy().
+ * latest_granting is deliberately NOT bumped: the SUSFS 2.4.0 contract says
+ * the driver must leave it alone. On failure the caller still owns newdb/newsid.
+ */
+static int ksu_policy_swap_419(struct policydb *newdb, struct sidtab *newsid)
+{
+    struct selinux_ss *ss = selinux_state.ss;
+    struct policydb *oldpdb;
+    struct sidtab *oldsid;
+
+    oldpdb = kmalloc(sizeof(*oldpdb), GFP_KERNEL);
+    if (!oldpdb)
+        return -ENOMEM;
+
+    write_lock_irq(&ss->policy_rwlock);
+    memcpy(oldpdb, &ss->policydb, sizeof(*oldpdb));
+    memcpy(&ss->policydb, newdb, sizeof(*newdb));
+    oldsid = ss->sidtab;
+    ss->sidtab = newsid;
+    write_unlock_irq(&ss->policy_rwlock);
+
+    /* newdb's internals now belong to ss; only the shell is left to free. */
+    kfree(newdb);
+
+    policydb_destroy(oldpdb);
+    kfree(oldpdb);
+    if (oldsid) {
+        sidtab_destroy(oldsid);
+        kfree(oldsid);
+    }
+    return 0;
+}
+
+static void ksu_drop_policy_419(struct policydb *db, struct sidtab *sid)
+{
+    policydb_destroy(db);
+    kfree(db);
+    sidtab_destroy(sid);
+    kfree(sid);
+}
+
+void apply_kernelsu_rules()
+{
+    struct selinux_ss *ss = selinux_state.ss;
+    struct policydb *newdb = NULL;
+    struct sidtab *newsid = NULL;
+
+    if (!getenforce()) {
+        pr_info("SELinux permissive or disabled, apply rules!\n");
+    }
+
+    mutex_lock(&ksu_policy_mutex_419);
+    newdb = ksu_clone_policydb(&ss->policydb, &newsid);
+    if (IS_ERR(newdb)) {
+        pr_err("failed to clone policy: %ld\n", PTR_ERR(newdb));
+        goto out_unlock;
+    }
+
+    ksu_apply_rules_db(newdb);
+
+    if (ksu_policy_swap_419(newdb, newsid)) {
+        pr_err("failed to swap in ksu rules\n");
+        ksu_drop_policy_419(newdb, newsid);
+        goto out_unlock;
+    }
+
+    reset_avc_cache(0);
+#ifdef CONFIG_KSU_SUSFS
+    susfs_set_batch_sid();
+#endif
+out_unlock:
+    mutex_unlock(&ksu_policy_mutex_419);
+}
+#else
+void apply_kernelsu_rules()
+{
+    struct selinux_policy *pol, *old_pol;
+    struct policydb *db;
+
+    if (!getenforce()) {
+        pr_info("SELinux permissive or disabled, apply rules!\n");
+    }
+
+    mutex_lock(&selinux_state.policy_mutex);
+
+    old_pol = rcu_dereference_protected(selinux_state.policy, lockdep_is_held(&selinux_state.policy_mutex));
+    backup_sepolicy = ksu_dup_sepolicy(old_pol);
+    if (IS_ERR(backup_sepolicy)) {
+        pr_err("failed to create backup sepolicy: %ld\n", PTR_ERR(backup_sepolicy));
+        backup_sepolicy = NULL;
+    } else {
+        backup_sepolicy->sidtab = kzalloc(sizeof(*backup_sepolicy->sidtab), GFP_KERNEL);
+        if (!backup_sepolicy->sidtab) {
+            pr_err("failed to alloc backup sidtab\n");
+            ksu_destroy_sepolicy(backup_sepolicy);
+            backup_sepolicy = NULL;
+        } else {
+            int ret = policydb_load_isids(&backup_sepolicy->policydb, backup_sepolicy->sidtab);
+            if (ret) {
+                pr_err("failed to load isids for backup sepolicy: %d!\n", ret);
+                kfree(backup_sepolicy->sidtab);
+                ksu_destroy_sepolicy(backup_sepolicy);
+                backup_sepolicy = NULL;
+            } else {
+                pr_info("backup sepolicy success! latest_granting=%d\n", backup_sepolicy->latest_granting);
+            }
+        }
+    }
+    pol = ksu_dup_sepolicy(old_pol);
+    if (IS_ERR(pol)) {
+        pr_err("failed to dup selinux_policy: %ld\n", PTR_ERR(pol));
+        goto out_unlock;
+    }
+
+    db = &pol->policydb;
+
+#if !defined(CONFIG_KSU_SUSFS) || !defined(KSU_SUSFS_HAS_TYPE_REGISTRATION)
+    pol->latest_granting = old_pol->latest_granting + 1;
+    if (!ksu_set_original_types(db, &old_pol->policydb, pol->latest_granting))
+        pr_warn("failed to save original type metadata, use backup lookups\n");
+#endif
+
+    ksu_apply_rules_db(db);
+
     rcu_assign_pointer(selinux_state.policy, pol);
     synchronize_rcu();
     ksu_destroy_sepolicy(old_pol);
@@ -190,6 +283,7 @@ void apply_kernelsu_rules()
 out_unlock:
     mutex_unlock(&selinux_state.policy_mutex);
 }
+#endif
 
 #define KSU_SEPOLICY_MAX_BATCH_SIZE (8U * 1024U * 1024U)
 #define KSU_SEPOLICY_MAX_ARGS 5
@@ -456,6 +550,116 @@ static int apply_one_sepolicy_cmd(struct policydb *db, const struct sepol_data *
     }
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+int handle_sepolicy(void __user *user_data, u64 data_len)
+{
+    struct selinux_ss *ss = selinux_state.ss;
+    struct policydb *newdb = NULL;
+    struct sidtab *newsid = NULL;
+    struct sepol_batch_cursor cursor;
+    u8 *payload;
+    int ret;
+    int success_cmd_count;
+    u32 cmd_index;
+
+    if (!user_data || !data_len) {
+        return -EINVAL;
+    }
+
+    if (data_len > KSU_SEPOLICY_MAX_BATCH_SIZE) {
+        return -E2BIG;
+    }
+
+    payload = kvmalloc((size_t)data_len, GFP_KERNEL);
+    if (!payload) {
+        return -ENOMEM;
+    }
+
+    if (copy_from_user(payload, user_data, (size_t)data_len)) {
+        ret = -EFAULT;
+        goto out_free;
+    }
+
+    if (!getenforce()) {
+        pr_info("SELinux permissive or disabled when handle policy!\n");
+    }
+
+    mutex_lock(&ksu_policy_mutex_419);
+    newdb = ksu_clone_policydb(&ss->policydb, &newsid);
+    if (IS_ERR(newdb)) {
+        ret = PTR_ERR(newdb);
+        pr_err("ksu_clone_policydb err: %d\n", ret);
+        newdb = NULL;
+        goto out_unlock;
+    }
+
+    cursor.cur = payload;
+    cursor.end = payload + (size_t)data_len;
+
+    ret = 0;
+    success_cmd_count = 0;
+    cmd_index = 0;
+    while (cursor.cur < cursor.end) {
+        struct sepol_data header;
+        const char *args[KSU_SEPOLICY_MAX_ARGS] = { 0 };
+        int expected_argc;
+        u32 arg_index;
+
+        ret = sepol_read_cmd_header(&cursor, &header);
+        if (ret < 0) {
+            pr_err("sepol: failed to read cmd header #%u.\n", cmd_index);
+            goto out_drop_new_policy;
+        }
+
+        expected_argc = sepol_expected_argc(header.cmd);
+        if (expected_argc < 0 || expected_argc > KSU_SEPOLICY_MAX_ARGS) {
+            ret = -EINVAL;
+            pr_err("sepol: invalid cmd header #%u.\n", cmd_index);
+            goto out_drop_new_policy;
+        }
+
+        for (arg_index = 0; arg_index < (u32)expected_argc; arg_index++) {
+            ret = sepol_read_string(&cursor, &args[arg_index]);
+            if (ret < 0) {
+                pr_err("sepol: failed to read cmd #%u arg #%u.\n", cmd_index, arg_index);
+                goto out_drop_new_policy;
+            }
+        }
+
+        ret = apply_one_sepolicy_cmd(newdb, &header, args);
+        if (ret < 0) {
+            pr_err("sepol: cmd #%u failed, cmd=%u subcmd=%u.\n", cmd_index, header.cmd, header.subcmd);
+        } else {
+            success_cmd_count++;
+        }
+        cmd_index++;
+    }
+
+    if (ksu_policy_swap_419(newdb, newsid)) {
+        ret = -ENOMEM;
+        pr_err("sepol: swap failed\n");
+        goto out_drop_new_policy;
+    }
+    newdb = NULL;
+
+    reset_avc_cache(0);
+#ifdef CONFIG_KSU_SUSFS
+    susfs_set_batch_sid();
+#endif
+    ret = success_cmd_count;
+    goto out_unlock;
+
+out_drop_new_policy:
+    if (newdb)
+        ksu_drop_policy_419(newdb, newsid);
+out_unlock:
+    mutex_unlock(&ksu_policy_mutex_419);
+out_free:
+    kvfree(payload);
+
+    return ret;
+}
+#else
 int handle_sepolicy(void __user *user_data, u64 data_len)
 {
     struct selinux_policy *pol, *old_pol;
@@ -571,3 +775,4 @@ out_free:
 
     return ret;
 }
+#endif

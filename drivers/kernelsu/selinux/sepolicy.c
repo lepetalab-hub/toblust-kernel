@@ -959,6 +959,7 @@ bool ksu_genfscon(struct policydb *db, const char *fs_name, const char *path, co
 
 // ======== sepolicy ========
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 void ksu_destroy_sepolicy(struct selinux_policy *pol)
 {
     policydb_destroy(&pol->policydb);
@@ -1044,3 +1045,77 @@ out_free_data:
 
     return ERR_PTR(ret);
 }
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
+#include "ss/sidtab.h"
+
+/*
+ * 4.19 path: deep copy of the live policydb through the same policydb_write /
+ * policydb_read round trip ksu_dup_sepolicy uses, plus a fresh sidtab from
+ * policydb_load_isids (which runs sidtab_init). No lock is held here, so
+ * GFP_KERNEL is correct. The live policy is only read.
+ */
+#define KSU_POLICY_BUF_MAX (16UL << 20)
+
+struct policydb *ksu_clone_policydb(struct policydb *src, struct sidtab **out_sidtab)
+{
+    struct policy_file fp;
+    struct policydb *dst;
+    struct sidtab *sid;
+    size_t used;
+    void *data;
+    int ret;
+
+    data = vmalloc(KSU_POLICY_BUF_MAX);
+    if (!data)
+        return ERR_PTR(-ENOMEM);
+
+    fp.data = data;
+    fp.len = KSU_POLICY_BUF_MAX;
+    ret = policydb_write(src, &fp);
+    if (ret) {
+        pr_err("ksu clone: policydb_write: %d\n", ret);
+        goto out_free_data;
+    }
+    used = KSU_POLICY_BUF_MAX - fp.len;
+
+    dst = kzalloc(sizeof(*dst), GFP_KERNEL);
+    if (!dst) {
+        ret = -ENOMEM;
+        goto out_free_data;
+    }
+
+    fp.data = data;
+    fp.len = used;
+    ret = policydb_read(dst, &fp);
+    if (ret) {
+        pr_err("ksu clone: policydb_read: %d\n", ret);
+        goto out_destroy_dst;
+    }
+
+    sid = kzalloc(sizeof(*sid), GFP_KERNEL);
+    if (!sid) {
+        ret = -ENOMEM;
+        goto out_destroy_dst;
+    }
+
+    ret = policydb_load_isids(dst, sid);
+    if (ret) {
+        pr_err("ksu clone: policydb_load_isids: %d\n", ret);
+        kfree(sid);
+        goto out_destroy_dst;
+    }
+
+    vfree(data);
+    *out_sidtab = sid;
+    return dst;
+
+out_destroy_dst:
+    policydb_destroy(dst);
+    kfree(dst);
+out_free_data:
+    vfree(data);
+    return ERR_PTR(ret);
+}
+#endif
