@@ -700,4 +700,3 @@ config PROCESS_MEM
 	  linux-process_mem user-space library.
 	  If unsure, say N.
 
-source "drivers/misc/kernel_hack/Kconfig"
