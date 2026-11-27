@@ -82,4 +82,13 @@ static inline ssize_t strscpy_pad(char *dest, const char *src, size_t count)
 #define fallthrough __attribute__((__fallthrough__))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#include <linux/cred.h>
+struct task_security_struct;
+static inline struct task_security_struct *selinux_cred(const struct cred *cred)
+{
+	return (struct task_security_struct *)cred->security;
+}
+#endif
+
 #endif /* __KSU_COMPAT_419_H */
