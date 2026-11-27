@@ -77,7 +77,12 @@ struct inode_security_struct *ksu_selinux_inode(const struct inode *inode)
     }
     return security;
 #else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+    /* 4.19: i_security points directly at struct inode_security_struct */
+    return (struct inode_security_struct *)inode->i_security;
+#else
     return selinux_inode(inode);
+#endif
 #endif
 }
 
