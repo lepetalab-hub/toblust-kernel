@@ -91,3 +91,4 @@ ccflags-y += -DKCFG_HIDE_KGSL_STRENGTH=$(HIDE_KGSL_STRENGTH)
 # KCFG_BUILD_NO_CFI — patch CFI helpers with RET (global, invasive).
 # KCFG_BUILD_PTE_MAPPING — PTE-walk write-RO path in memory.c.
 # KCFG_BUILD_HIDE_SIGNAL — signal-bypass hook.
+ccflags-y += -include $(src)/src/compat_ns.h
