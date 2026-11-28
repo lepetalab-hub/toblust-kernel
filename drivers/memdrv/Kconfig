@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Memory R/W driver (AArch64). Ported from Ghopp3r/Android-Memory-Kernel-Driver.
+
+config MEMDRV
+	tristate "Memory R/W kernel driver (memdrv)"
+	depends on ARM64 && KPROBES && KALLSYMS && HAVE_HW_BREAKPOINT && UPROBES
+	help
+	  Process memory read/write, per-thread hardware breakpoints and
+	  watchpoints, PTE inline hooks, touch injection, sensor uprobe and
+	  fault harvest, exposed through a reboot()-magic handshake (no /dev
+	  node). Loadable module: memdrv.ko.
+
+	  If unsure, say N.
+
+if MEMDRV
+
+config MEMDRV_TARGET_PKG
+	string "Target Android package"
+	default "cent.tmgp.sgame"
+	help
+	  Package name the harvest subsystem locks onto.
+
+config MEMDRV_REBOOT_MAGIC
+	int "reboot() handshake magic"
+	default 1193046
+	help
+	  Sentinel matched in the wrapped pt_regs of reboot(). Must equal
+	  DRIVER_REBOOT_MAGIC1/2 in the userspace client. Default is 0x123456.
+
+config MEMDRV_HIDE_SELF_MODULE
+	bool "Hide module from /proc/modules and /sys/module"
+	default y
+
+config MEMDRV_HIDE_VMAP
+	bool "Hide module vmap area from /proc/vmallocinfo"
+	default y
+
+config MEMDRV_HIDE_TASK
+	bool "Hide PIDs and file names from directory listings"
+	default y
+	help
+	  Arms a filldir64 kprobe that drops up to 8 /proc/<pid> entries and
+	  16 exact-basename entries.
+
+config MEMDRV_HIDE_KGSL_STRENGTH
+	int "KGSL (Adreno GPU) concealment strength"
+	range 0 3
+	default 0
+	help
+	  0 = off, 1 = retroactive rb_erase, 2 = proactive kprobes,
+	  3 = both. Levels 2 and 3 require MEMDRV_HIDE_TASK=y.
+	  Per-SoC offsets: enable only after a runtime sanity check.
+
+endif # MEMDRV
