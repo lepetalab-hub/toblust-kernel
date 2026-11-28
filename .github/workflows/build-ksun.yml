@@ -47,7 +47,12 @@ jobs:
             -e DEBUG_INFO -e DEBUG_INFO_BTF -e DEBUG_INFO_BTF_MODULES \
             -e PAHOLE_HAS_SPLIT_BTF -e KALLSYMS -e KALLSYMS_ALL -e PROC_KCORE
           grep -q "^CONFIG_MODVERSIONS=y" out/.config || { echo "MODVERSIONS tidak aktif"; exit 1; }
+          echo "== diagnostik BTF sebelum olddefconfig =="
+          command -v pahole && pahole --version || echo "pahole TIDAK ada di PATH"
+          grep -E "DEBUG_INFO|PAHOLE" out/.config || true
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) olddefconfig
+          echo "== diagnostik BTF sesudah olddefconfig =="
+          grep -E "DEBUG_INFO|PAHOLE" out/.config || true
           for opt in DEBUG_INFO_BTF DEBUG_INFO_BTF_MODULES KALLSYMS_ALL PROC_KCORE; do
             grep -q "^CONFIG_${opt}=y" out/.config || { echo "CONFIG_${opt} tidak aktif setelah olddefconfig"; exit 1; }
           done
@@ -63,6 +68,7 @@ jobs:
           mkdir -p artifacts
           ls out/arch/arm64/boot/Image* >/dev/null 2>&1 || { echo "Image tidak ada, build gagal"; exit 1; }
           cp out/arch/arm64/boot/Image* artifacts/ 2>/dev/null || true
+          test -f out/vmlinux && cp out/vmlinux artifacts/ || { echo "vmlinux tidak ada"; exit 1; }
           find out/arch/arm64/boot/dts -name "*.dtb" -exec cp {} artifacts/ \; 2>/dev/null || true
           cp ksu-config.txt build.log artifacts/ 2>/dev/null || true
           find out/drivers/kernel_hack -name "*.ko" -exec cp {} artifacts/ \; 2>/dev/null || true
