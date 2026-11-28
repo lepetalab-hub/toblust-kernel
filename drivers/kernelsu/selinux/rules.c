@@ -140,8 +140,8 @@ static void ksu_apply_rules_db(struct policydb *db)
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
-#if !defined(KSU_SUSFS_HAS_TYPE_REGISTRATION)
-#error "FinaSU 4.19 path requires SUSFS type registration (susfs_add_sus_type)"
+#if defined(CONFIG_KSU_SUSFS) && !defined(KSU_SUSFS_HAS_TYPE_REGISTRATION)
+#error "FinaSU 4.19 path with SUSFS requires type registration (susfs_add_sus_type)"
 #endif
 
 static DEFINE_MUTEX(ksu_policy_mutex_419);
