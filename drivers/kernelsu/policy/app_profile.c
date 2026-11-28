@@ -252,6 +252,13 @@ void __init ksu_app_profile_init(void)
     int ret;
     void *raw_spin_lock_irq_sym = find_kernel_symbol_exact("_raw_spin_lock_irq");
     void *seccomp_filter_release_sym = find_kernel_symbol_exact("seccomp_filter_release");
+    if (!seccomp_filter_release_sym) {
+        // 4.19 has no seccomp_filter_release symbol; skip the scan and keep the
+        // default (sighand = NULL) branch in the fake-task path.
+        has_call_to_spin_lock = false;
+        pr_info("seccomp_filter_release not found, has_call_to_spin_lock = 0\n");
+        return;
+    }
     ret = kallsyms_lookup_size_offset(seccomp_filter_release_sym, &size, NULL);
     if (!ret || !size) {
         pr_err("failed to get size of seccomp_filter_release: %d, use 128\n", ret);
