@@ -681,7 +681,9 @@ static struct flex_array *ksu_flex_grow_ptrs(struct flex_array *old, u32 old_n, 
         return NULL;
     }
     for (i = 0; i < old_n; i++) {
-        if (flex_array_put_ptr(fa, i, flex_array_get_ptr(old, i), GFP_KERNEL)) {
+        void *p = flex_array_get_ptr(old, i);
+
+        if (flex_array_put_ptr(fa, i, p, GFP_KERNEL)) {
             flex_array_free(fa);
             return NULL;
         }
