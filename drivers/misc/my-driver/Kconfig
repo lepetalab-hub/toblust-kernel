@@ -1,6 +1,6 @@
 config MY_DRIVER
 	tristate "Android memory kernel driver"
-	depends on MODULES && KPROBES
+	depends on MODULES
 	default m
 	help
 	  Out-of-tree memory R/W driver with hardware breakpoints,
