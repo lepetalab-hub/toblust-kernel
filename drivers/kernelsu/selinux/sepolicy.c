@@ -172,27 +172,32 @@ static bool remove_avtab_node(struct policydb *db, struct avtab_node *node)
 
     for (i = 0; i < db->te_avtab.nslot; i++) {
         prev = NULL;
-        for (n = db->te_avtab.htable[i]; n; prev = n, n = n->next) {
+        for (n = flex_array_get_ptr(db->te_avtab.htable, i); n; prev = n, n = n->next) {
             if (n != node)
                 continue;
 
-            if (prev)
+            if (prev) {
                 prev->next = n->next;
-            else
-                db->te_avtab.htable[i] = n->next;
+            } else if (flex_array_put_ptr(db->te_avtab.htable, i, n->next, GFP_KERNEL)) {
+                pr_err("remove_avtab_node: put slot failed\n");
+                avtab_destroy(&removed);
+                return false;
+            }
 
             if (db->te_avtab.nel > 0)
                 db->te_avtab.nel--;
 
             if (n->key.specified & AVTAB_XPERMS)
-                // specified and driver are u8, perms.p holds 8 u32s
                 shrink_size += sizeof(n->datum.u.xperms->specified) + sizeof(n->datum.u.xperms->driver) +
                                sizeof(n->datum.u.xperms->perms.p);
             else
-                // data is u32
                 shrink_size += sizeof(n->datum.u.data);
             n->next = NULL;
-            removed.htable[0] = n;
+            if (flex_array_put_ptr(removed.htable, 0, n, GFP_KERNEL)) {
+                pr_err("remove_avtab_node: put removed failed\n");
+                avtab_destroy(&removed);
+                return false;
+            }
             removed.nel = 1;
             avtab_destroy(&removed);
             if (db->len >= shrink_size)
@@ -556,7 +561,9 @@ static bool add_filename_trans(struct policydb *db, const char *s, const char *t
 {
     struct type_datum *src, *tgt, *def;
     struct class_datum *cls;
-    struct filename_trans_key *new_key = NULL;
+    struct filename_trans key;
+    struct filename_trans *new_key;
+    struct filename_trans_datum *trans;
     int rc;
 
     src = symtab_search(&db->p_types, s);
@@ -580,62 +587,53 @@ static bool add_filename_trans(struct policydb *db, const char *s, const char *t
         return false;
     }
 
-    struct filename_trans_key key;
+    key.stype = src->value;
     key.ttype = tgt->value;
     key.tclass = cls->value;
-    key.name = (char *)o;
+    key.name = o;
 
-    struct filename_trans_datum *last = NULL;
-
-    struct filename_trans_datum *trans = policydb_filenametr_search(db, &key);
-    while (trans) {
-        if (ebitmap_get_bit(&trans->stypes, src->value - 1)) {
-            // Duplicate, overwrite existing data and return
-            trans->otype = def->value;
-            return true;
-        }
-        if (trans->otype == def->value)
-            break;
-        last = trans;
-        trans = trans->next;
-    }
-
-    if (trans == NULL) {
-        trans = (struct filename_trans_datum *)kcalloc(1, sizeof(*trans), GFP_KERNEL);
-        if (!trans) {
-            pr_err("add_filename_trans: alloc filename_trans_datum failed\n");
-            goto out;
-        }
-        new_key = (struct filename_trans_key *)kzalloc(sizeof(*new_key), GFP_KERNEL);
-        if (!new_key) {
-            pr_err("add_filename_trans: alloc filename_trans_key failed\n");
-            goto free_trans;
-        }
-        *new_key = key;
-        new_key->name = kstrdup(key.name, GFP_KERNEL);
-        if (!new_key->name) {
-            pr_err("add_filename_trans: kstrdup name failed\n");
-            goto free_key;
-        }
-        trans->next = last;
+    trans = hashtab_search(db->filename_trans, &key);
+    if (trans) {
         trans->otype = def->value;
-        rc = hashtab_insert(&db->filename_trans, new_key, trans, filenametr_key_params);
-        if (rc) {
-            pr_err("add_filename_trans: hashtab_insert failed: %d\n", rc);
-            goto free_name;
-        }
+        return true;
     }
 
-    db->compat_filename_trans_count++;
-    return ebitmap_set_bit(&trans->stypes, src->value - 1, 1) == 0;
+    new_key = kzalloc(sizeof(*new_key), GFP_KERNEL);
+    if (!new_key) {
+        pr_err("add_filename_trans: alloc key failed\n");
+        return false;
+    }
+    *new_key = key;
+    new_key->name = kstrdup(o, GFP_KERNEL);
+    if (!new_key->name) {
+        pr_err("add_filename_trans: kstrdup name failed\n");
+        goto free_key;
+    }
+    trans = kzalloc(sizeof(*trans), GFP_KERNEL);
+    if (!trans) {
+        pr_err("add_filename_trans: alloc datum failed\n");
+        goto free_name;
+    }
+    trans->otype = def->value;
 
+    /* same order as policydb_read: mark the ttype first, then insert */
+    if (ebitmap_set_bit(&db->filename_trans_ttypes, tgt->value, 1)) {
+        pr_err("add_filename_trans: set ttype bit failed\n");
+        goto free_trans;
+    }
+    rc = hashtab_insert(db->filename_trans, new_key, trans);
+    if (rc) {
+        pr_err("add_filename_trans: hashtab_insert failed: %d\n", rc);
+        goto free_trans;
+    }
+    return true;
+
+free_trans:
+    kfree(trans);
 free_name:
     kfree(new_key->name);
 free_key:
     kfree(new_key);
-free_trans:
-    kfree(trans);
-out:
     return false;
 }
 
@@ -669,8 +667,52 @@ void *ksu_kvrealloc_compat(const void *p, size_t oldsize, size_t newsize, gfp_t 
 #define ksu_kvrealloc(p, new_size, old_size) ksu_kvrealloc_compat(p, old_size, new_size, GFP_KERNEL)
 #endif
 
+/* 4.19 flex_array tables cannot grow in place: build a new one, copy, swap. */
+static struct flex_array *ksu_flex_grow_ptrs(struct flex_array *old, u32 old_n, u32 new_n)
+{
+    struct flex_array *fa;
+    u32 i;
+
+    fa = flex_array_alloc(sizeof(void *), new_n, GFP_KERNEL | __GFP_ZERO);
+    if (!fa)
+        return NULL;
+    if (flex_array_prealloc(fa, 0, new_n, GFP_KERNEL | __GFP_ZERO)) {
+        flex_array_free(fa);
+        return NULL;
+    }
+    for (i = 0; i < old_n; i++) {
+        if (flex_array_put_ptr(fa, i, flex_array_get_ptr(old, i), GFP_KERNEL)) {
+            flex_array_free(fa);
+            return NULL;
+        }
+    }
+    return fa;
+}
+
+static struct flex_array *ksu_flex_grow_ebitmaps(struct flex_array *old, u32 old_n, u32 new_n)
+{
+    struct flex_array *fa;
+    u32 i;
+
+    fa = flex_array_alloc(sizeof(struct ebitmap), new_n, GFP_KERNEL | __GFP_ZERO);
+    if (!fa)
+        return NULL;
+    if (flex_array_prealloc(fa, 0, new_n, GFP_KERNEL | __GFP_ZERO)) {
+        flex_array_free(fa);
+        return NULL;
+    }
+    for (i = 0; i < old_n; i++) {
+        if (flex_array_put(fa, i, flex_array_get(old, i), GFP_KERNEL)) {
+            flex_array_free(fa);
+            return NULL;
+        }
+    }
+    return fa;
+}
+
 static bool add_type(struct policydb *db, const char *type_name, bool attr)
 {
+    int i;
     struct type_datum *type = symtab_search(&db->p_types, type_name);
     if (type) {
         pr_warn("Type %s already exists\n", type_name);
@@ -699,40 +741,28 @@ static bool add_type(struct policydb *db, const char *type_name, bool attr)
         return false;
     }
 
-    struct ebitmap *new_type_attr_map_array =
-        ksu_kvrealloc(db->type_attr_map_array, value * sizeof(struct ebitmap), (value - 1) * sizeof(struct ebitmap));
+    struct flex_array *new_attr = ksu_flex_grow_ebitmaps(db->type_attr_map_array, value - 1, value);
+    struct flex_array *new_val = ksu_flex_grow_ptrs(db->type_val_to_struct_array, value - 1, value);
+    struct flex_array *new_names = ksu_flex_grow_ptrs(db->sym_val_to_name[SYM_TYPES], value - 1, value);
+    if (!new_attr || !new_val || !new_names)
+        goto fail_arrays;
 
-    if (!new_type_attr_map_array) {
-        pr_err("add_type: alloc type_attr_map_array failed\n");
-        return false;
-    }
+    ebitmap_init(flex_array_get(new_attr, value - 1));
+    ebitmap_set_bit(flex_array_get(new_attr, value - 1), value - 1, 1);
+    if (flex_array_put_ptr(new_val, value - 1, type, GFP_KERNEL) ||
+        flex_array_put_ptr(new_names, value - 1, key, GFP_KERNEL))
+        goto fail_arrays;
 
-    struct type_datum **new_type_val_to_struct = ksu_kvrealloc(
-        db->type_val_to_struct, sizeof(*db->type_val_to_struct) * value, sizeof(*db->type_val_to_struct) * (value - 1));
+    if (db->type_attr_map_array)
+        flex_array_free(db->type_attr_map_array);
+    if (db->type_val_to_struct_array)
+        flex_array_free(db->type_val_to_struct_array);
+    if (db->sym_val_to_name[SYM_TYPES])
+        flex_array_free(db->sym_val_to_name[SYM_TYPES]);
+    db->type_attr_map_array = new_attr;
+    db->type_val_to_struct_array = new_val;
+    db->sym_val_to_name[SYM_TYPES] = new_names;
 
-    if (!new_type_val_to_struct) {
-        pr_err("add_type: alloc type_val_to_struct failed\n");
-        return false;
-    }
-
-    char **new_val_to_name_types =
-        ksu_kvrealloc(db->sym_val_to_name[SYM_TYPES], sizeof(char *) * value, sizeof(char *) * (value - 1));
-    if (!new_val_to_name_types) {
-        pr_err("add_type: alloc val_to_name failed\n");
-        return false;
-    }
-
-    db->type_attr_map_array = new_type_attr_map_array;
-    ebitmap_init(&db->type_attr_map_array[value - 1]);
-    ebitmap_set_bit(&db->type_attr_map_array[value - 1], value - 1, 1);
-
-    db->type_val_to_struct = new_type_val_to_struct;
-    db->type_val_to_struct[value - 1] = type;
-
-    db->sym_val_to_name[SYM_TYPES] = new_val_to_name_types;
-    db->sym_val_to_name[SYM_TYPES][value - 1] = key;
-
-    int i;
     for (i = 0; i < db->p_roles.nprim; ++i) {
         ebitmap_set_bit(&db->role_val_to_struct[i]->types, value - 1, 1);
     }
@@ -741,6 +771,16 @@ static bool add_type(struct policydb *db, const char *type_name, bool attr)
     susfs_add_sus_type(type_name, type->value);
 #endif
     return true;
+
+fail_arrays:
+    if (new_attr)
+        flex_array_free(new_attr);
+    if (new_val)
+        flex_array_free(new_val);
+    if (new_names)
+        flex_array_free(new_names);
+    pr_err("add_type: alloc or put type arrays failed\n");
+    return false;
 }
 
 static bool set_type_state(struct policydb *db, const char *type_name, bool permissive)
@@ -770,7 +810,7 @@ static bool set_type_state(struct policydb *db, const char *type_name, bool perm
 
 static void add_typeattribute_raw(struct policydb *db, struct type_datum *type, struct type_datum *attr)
 {
-    struct ebitmap *sattr = &db->type_attr_map_array[type->value - 1];
+    struct ebitmap *sattr = flex_array_get(db->type_attr_map_array, type->value - 1);
     ebitmap_set_bit(sattr, attr->value - 1, 1);
 
     struct hashtab_node *node;
