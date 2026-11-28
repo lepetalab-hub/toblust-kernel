@@ -64,7 +64,13 @@ void setup_groups(struct root_profile *profile, struct cred *cred)
     put_group_info(group_info);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+void put_seccomp_filter(struct task_struct *tsk);
+#define ksu_seccomp_filter_release(t) put_seccomp_filter(t)
+#else
 void seccomp_filter_release(struct task_struct *tsk);
+#define ksu_seccomp_filter_release(t) seccomp_filter_release(t)
+#endif
 
 // https://cs.android.com/android/_/android/kernel/common/+/5346453405bf12d7ed6003f45dd47b71744fe1be
 // Some 15-6.6 kernel have this backport while others don't have, e.g. Pixel 10
@@ -120,7 +126,7 @@ static void disable_seccomp(void)
     fake->sighand = NULL;
 #endif
 
-    seccomp_filter_release(fake);
+    ksu_seccomp_filter_release(fake);
     kfree(fake);
 }
 

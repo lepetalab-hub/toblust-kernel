@@ -41,11 +41,16 @@ static const struct ksu_feature_handler kernel_umount_handler = {
     .set_handler = kernel_umount_feature_set,
 };
 
-extern int path_umount(struct path *path, int flags);
+extern int path_umount(struct path *path, int flags) __attribute__((weak));
 
 static void ksu_umount_mnt(struct path *path, int flags)
 {
-    int err = path_umount(path, flags);
+    int err;
+    if (!path_umount) {
+        pr_info_ratelimited("path_umount not available on this kernel, skip\n");
+        return;
+    }
+    err = path_umount(path, flags);
     if (err) {
         pr_info_ratelimited("umount list entry failed: %d\n", err);
     }

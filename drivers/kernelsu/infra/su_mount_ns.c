@@ -24,7 +24,7 @@
 #include "util.h"
 
 extern int path_mount(const char *dev_name, struct path *path, const char *type_page, unsigned long flags,
-                      void *data_page);
+                      void *data_page) __attribute__((weak));
 
 // global mode , need CAP_SYS_ADMIN and CAP_SYS_CHROOT to perform setns
 static void ksu_mnt_ns_global(void)
@@ -127,6 +127,11 @@ static void ksu_mnt_ns_individual(void)
     // make root mount private
     struct path root_path;
     get_fs_root(current->fs, &root_path);
+    if (!path_mount) {
+        path_put(&root_path);
+        pr_warn("path_mount not available on this kernel, skip private root\n");
+        return;
+    }
     int pm_ret = path_mount(NULL, &root_path, NULL, MS_PRIVATE | MS_REC, NULL);
     path_put(&root_path);
 
