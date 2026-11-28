@@ -1,4 +1,3 @@
-#pragma once
 #include <linux/sched.h>
 #include <linux/module.h>
 #include <linux/tty.h>
