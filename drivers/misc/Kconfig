@@ -670,7 +670,6 @@ source "drivers/misc/cdfingerfp/Kconfig"
 source "drivers/misc/xiaomi_fs/Kconfig"
 source "drivers/misc/hqsysfs/Kconfig"
 source "drivers/misc/qrc/Kconfig"
-source "drivers/misc/my-driver/Kconfig"
 endmenu
 
 config OKL4_USER_VIPC
