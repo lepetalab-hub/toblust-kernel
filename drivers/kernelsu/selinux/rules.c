@@ -182,6 +182,17 @@ static void ksu_backup_419(void)
  * latest_granting is deliberately NOT bumped: the SUSFS 2.4.0 contract says
  * the driver must leave it alone. On failure the caller still owns newdb/newsid.
  */
+/* Keep the live sidtab: SIDs already handed to running tasks must stay valid.
+ * Injection only appends types and rules, so existing SID values are unchanged. */
+static void ksu_keep_live_sidtab_419(struct sidtab **sid)
+{
+    if (*sid && *sid != selinux_state.ss->sidtab) {
+        sidtab_destroy(*sid);
+        kfree(*sid);
+    }
+    *sid = selinux_state.ss->sidtab;
+}
+
 static int ksu_policy_swap_419(struct policydb *newdb, struct sidtab *newsid)
 {
     struct selinux_ss *ss = selinux_state.ss;
@@ -204,7 +215,7 @@ static int ksu_policy_swap_419(struct policydb *newdb, struct sidtab *newsid)
 
     policydb_destroy(oldpdb);
     kfree(oldpdb);
-    if (oldsid) {
+    if (oldsid && oldsid != newsid) {
         sidtab_destroy(oldsid);
         kfree(oldsid);
     }
@@ -213,10 +224,10 @@ static int ksu_policy_swap_419(struct policydb *newdb, struct sidtab *newsid)
 
 static void ksu_drop_policy_419(struct policydb *db, struct sidtab *sid)
 {
+    /* sid is the live sidtab on error paths: never free it here */
+    (void)sid;
     policydb_destroy(db);
     kfree(db);
-    sidtab_destroy(sid);
-    kfree(sid);
 }
 
 void apply_kernelsu_rules()
@@ -237,6 +248,7 @@ void apply_kernelsu_rules()
     }
 
     ksu_backup_419();
+    ksu_keep_live_sidtab_419(&newsid);
     ksu_apply_rules_db(newdb);
 
     if (ksu_policy_swap_419(newdb, newsid)) {
@@ -627,6 +639,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
         newdb = NULL;
         goto out_unlock;
     }
+    ksu_keep_live_sidtab_419(&newsid);
 
     cursor.cur = payload;
     cursor.end = payload + (size_t)data_len;
