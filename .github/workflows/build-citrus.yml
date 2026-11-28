@@ -15,6 +15,10 @@ on:
         description: "KSU_EXPECTED_HASH (sha256 APK manager); kosong = placeholder"
         required: false
         default: ""
+      ksu_enable:
+        description: "y = KernelSU on, n = KernelSU off (isolation build)"
+        required: false
+        default: "y"
 
 jobs:
   build:
@@ -38,6 +42,7 @@ jobs:
           DEFCONFIG: ${{ inputs.defconfig }}
           KSU_EXPECTED_SIZE: ${{ inputs.ksu_expected_size }}
           KSU_EXPECTED_HASH: ${{ inputs.ksu_expected_hash }}
+          KSU_ENABLE: ${{ inputs.ksu_enable }}
         run: |
           set -o pipefail
           export KBUILD_BUILD_USER="@Bob_Lvett" KBUILD_BUILD_HOST="toblust"
@@ -51,12 +56,15 @@ jobs:
             -e KSU_HOOK_TRACEPOINT -d KSU_HOOK_SUSFS_INLINE \
             -e KPROBES -e KALLSYMS_ALL -e EXT4_FS -e THREAD_INFO_IN_TASK
           scripts/config --file out/.config -e KSU_SUSFS_SUS_PATH -e KSU_SUSFS_SUS_MOUNT -e KSU_SUSFS_SUS_KSTAT -e KSU_SUSFS_SUS_MAP -e KSU_SUSFS_OPEN_REDIRECT -e KSU_SUSFS_SPOOF_UNAME -e KSU_SUSFS_ENABLE_LOG -e KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS -e KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+          if [ "${KSU_ENABLE:-y}" = "n" ]; then
+            scripts/config --file out/.config -d KSU -d KSU_SUSFS -d KSU_HOOK_TRACEPOINT -d KSU_DYNAMIC_MANAGER
+          fi
           grep -q "^CONFIG_MODVERSIONS=y" out/.config || { echo "MODVERSIONS tidak aktif"; exit 1; }
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) olddefconfig
           if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
             echo "MODULE_SIG masih aktif"; exit 1
           fi
-          for s in KSU KSU_SUSFS KSU_SUSFS_PRIORITY_UID_FILTER KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SUS_MAP KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG KSU_HOOK_TRACEPOINT KPROBES KALLSYMS_ALL EXT4_FS THREAD_INFO_IN_TASK; do
+          [ "${KSU_ENABLE:-y}" = "y" ] && for s in KSU KSU_SUSFS KSU_SUSFS_PRIORITY_UID_FILTER KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SUS_MAP KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG KSU_HOOK_TRACEPOINT KPROBES KALLSYMS_ALL EXT4_FS THREAD_INFO_IN_TASK; do
             grep -q "^CONFIG_${s}=y" out/.config || { echo "CONFIG_${s} tidak aktif setelah olddefconfig"; exit 1; }
           done
           grep -E "CONFIG_QCA_CLD_WLAN|CONFIG_SCHED_WALT|CONFIG_LOCALVERSION" out/.config | tee config-check.txt
