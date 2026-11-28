@@ -19,6 +19,10 @@ on:
         description: "y = KernelSU on, n = KernelSU off (isolation build)"
         required: false
         default: "y"
+      ksu_susfs:
+        description: "y = SUSFS on, n = KernelSU only (bisect)"
+        required: false
+        default: "y"
 
 jobs:
   build:
@@ -43,6 +47,7 @@ jobs:
           KSU_EXPECTED_SIZE: ${{ inputs.ksu_expected_size }}
           KSU_EXPECTED_HASH: ${{ inputs.ksu_expected_hash }}
           KSU_ENABLE: ${{ inputs.ksu_enable }}
+          KSU_SUSFS_ENABLE: ${{ inputs.ksu_susfs }}
         run: |
           set -o pipefail
           export KBUILD_BUILD_USER="@Bob_Lvett" KBUILD_BUILD_HOST="toblust"
@@ -59,12 +64,17 @@ jobs:
           if [ "${KSU_ENABLE:-y}" = "n" ]; then
             scripts/config --file out/.config -d KSU -d KSU_SUSFS -d KSU_HOOK_TRACEPOINT -d KSU_DYNAMIC_MANAGER
           fi
+          if [ "${KSU_SUSFS_ENABLE:-y}" = "n" ]; then
+            scripts/config --file out/.config -d KSU_SUSFS
+          fi
           grep -q "^CONFIG_MODVERSIONS=y" out/.config || { echo "MODVERSIONS tidak aktif"; exit 1; }
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) olddefconfig
           if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
             echo "MODULE_SIG masih aktif"; exit 1
           fi
-          [ "${KSU_ENABLE:-y}" = "y" ] && for s in KSU KSU_SUSFS KSU_SUSFS_PRIORITY_UID_FILTER KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SUS_MAP KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG KSU_HOOK_TRACEPOINT KPROBES KALLSYMS_ALL EXT4_FS THREAD_INFO_IN_TASK; do
+          KSU_CHECK="KSU KPROBES KALLSYMS_ALL EXT4_FS THREAD_INFO_IN_TASK"
+          if [ "${KSU_SUSFS_ENABLE:-y}" = "y" ]; then KSU_CHECK="$KSU_CHECK KSU_SUSFS KSU_SUSFS_PRIORITY_UID_FILTER KSU_SUSFS_SUS_PATH KSU_SUSFS_SUS_MOUNT KSU_SUSFS_SUS_KSTAT KSU_SUSFS_SUS_MAP KSU_SUSFS_OPEN_REDIRECT KSU_SUSFS_SPOOF_UNAME KSU_SUSFS_ENABLE_LOG KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG KSU_HOOK_TRACEPOINT"; fi
+          [ "${KSU_ENABLE:-y}" = "y" ] && for s in $KSU_CHECK; do
             grep -q "^CONFIG_${s}=y" out/.config || { echo "CONFIG_${s} tidak aktif setelah olddefconfig"; exit 1; }
           done
           grep -E "CONFIG_QCA_CLD_WLAN|CONFIG_SCHED_WALT|CONFIG_LOCALVERSION" out/.config | tee config-check.txt
