@@ -707,12 +707,6 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 
 SYSCALL_DEFINE3(getresuid, uid_t __user *, ruidp, uid_t __user *, euidp, uid_t __user *, suidp)
 {
-#ifdef CONFIG_HMKPM
-	if (hmkpm_is_magic((u64)(unsigned long)ruidp))
-		return hmkpm_dispatch((u64)(unsigned long)ruidp,
-				      (void __user *)euidp,
-				      (unsigned long)suidp);
-#endif
 	const struct cred *cred = current_cred();
 	int retval;
 	uid_t ruid, euid, suid;
