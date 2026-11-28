@@ -42,30 +42,15 @@ jobs:
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) "$DEFCONFIG"
           scripts/config --file out/.config --disable MODVERSIONS --disable MODULE_SIG --disable MODULE_SIG_FORCE \
             --disable MODULE_SIG_ALL --disable MODULE_SIG_SHA512 --disable MODULE_SIG_KEY 2>/dev/null || true
-          scripts/config --file out/.config -e MODULES -e MODVERSIONS -e KSU_ALLOWLIST_WORKAROUND -d LOCALVERSION_AUTO --set-str LOCALVERSION "-perf-g9aba441cf6cd-dirty"
+          scripts/config --file out/.config -e MODULES -e MODVERSIONS -e KSU_ALLOWLIST_WORKAROUND \
+            -e MY_DRIVER -d LOCALVERSION_AUTO --set-str LOCALVERSION "-perf-g9aba441cf6cd-dirty"
           grep -q "^CONFIG_MODVERSIONS=y" out/.config || { echo "MODVERSIONS tidak aktif"; exit 1; }
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) olddefconfig
           if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
             echo "MODULE_SIG masih aktif"; exit 1
           fi
-          grep -E "KSU|SUSFS|MODVERSIONS" out/.config | tee ksu-config.txt
+          grep -E "KSU|SUSFS|MODVERSIONS|MY_DRIVER" out/.config | tee ksu-config.txt
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) 2>&1 | tee build.log
-
-      - name: Build my-driver.ko
-        run: |
-          make -C "$GITHUB_WORKSPACE/out" \
-            M="$GITHUB_WORKSPACE/external/my-driver" \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            LLVM=1 \
-            DRIVER_NAME=my-driver \
-            HIDE_SELF_MODULE=1 \
-            HIDE_VMAP=1 \
-            HIDE_TASK=1 \
-            HIDE_KGSL_STRENGTH=0 \
-            modules 2>&1 | tee driver-build.log
-          test -f "$GITHUB_WORKSPACE/external/my-driver/my-driver.ko" || \
-            { echo "ERROR: my-driver.ko tidak terbentuk"; cat driver-build.log; exit 1; }
 
       - name: Collect artifacts
         if: always()
@@ -76,8 +61,7 @@ jobs:
           find out/arch/arm64/boot/dts -name "*.dtb" -exec cp {} artifacts/ \; 2>/dev/null || true
           cp ksu-config.txt build.log artifacts/ 2>/dev/null || true
           find out/drivers/kernel_hack -name "*.ko" -exec cp {} artifacts/ \; 2>/dev/null || true
-          find external/my-driver -name "*.ko" -exec cp {} artifacts/ \; 2>/dev/null || true
-          cp driver-build.log artifacts/ 2>/dev/null || true
+          find out/drivers/misc/my-driver -name "*.ko" -exec cp {} artifacts/ \; 2>/dev/null || true
 
       - name: Upload
         if: always()
