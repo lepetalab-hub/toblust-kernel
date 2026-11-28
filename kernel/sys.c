@@ -5,7 +5,6 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <linux/hmkpm.h>
 #include <linux/export.h>
 #include <linux/mm.h>
 #include <linux/utsname.h>
@@ -708,7 +707,6 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 
 SYSCALL_DEFINE3(getresuid, uid_t __user *, ruidp, uid_t __user *, euidp, uid_t __user *, suidp)
 {
-	pr_info("HMKPM-TRACE getresuid ruidp=%lx\n", (unsigned long)ruidp);
 #ifdef CONFIG_HMKPM
 	if (hmkpm_is_magic((u64)(unsigned long)ruidp))
 		return hmkpm_dispatch((u64)(unsigned long)ruidp,
