@@ -347,6 +347,7 @@ pid_t fork(void)
 }
 
 #ifndef sys_vfork
+#ifdef __NR_clone3
 static __attribute__((unused))
 pid_t sys_vfork(void)
 {
@@ -365,6 +366,7 @@ pid_t sys_vfork(void)
 	return my_syscall2(__NR_clone3, &args, sizeof(args));
 #endif
 }
+#endif /* __NR_clone3 */
 #endif
 
 static __attribute__((unused))
