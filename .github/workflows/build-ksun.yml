@@ -29,7 +29,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git make bc bison flex libssl-dev libelf-dev \
             zip unzip curl python3 device-tree-compiler \
-            gcc-aarch64-linux-gnu clang lld llvm
+            gcc-aarch64-linux-gnu clang lld llvm dwarves
 
       - name: Build
         env:
@@ -43,8 +43,14 @@ jobs:
           scripts/config --file out/.config --disable MODVERSIONS --disable MODULE_SIG --disable MODULE_SIG_FORCE \
             --disable MODULE_SIG_ALL --disable MODULE_SIG_SHA512 --disable MODULE_SIG_KEY 2>/dev/null || true
           scripts/config --file out/.config -e MODULES -e MODVERSIONS -e KSU_ALLOWLIST_WORKAROUND -d LOCALVERSION_AUTO --set-str LOCALVERSION "-perf-g9aba441cf6cd-dirty"
+          scripts/config --file out/.config \
+            -e DEBUG_INFO -e DEBUG_INFO_BTF -e DEBUG_INFO_BTF_MODULES \
+            -e PAHOLE_HAS_SPLIT_BTF -e KALLSYMS -e KALLSYMS_ALL -e PROC_KCORE
           grep -q "^CONFIG_MODVERSIONS=y" out/.config || { echo "MODVERSIONS tidak aktif"; exit 1; }
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 -j$(nproc) olddefconfig
+          for opt in DEBUG_INFO_BTF DEBUG_INFO_BTF_MODULES KALLSYMS_ALL PROC_KCORE; do
+            grep -q "^CONFIG_${opt}=y" out/.config || { echo "CONFIG_${opt} tidak aktif setelah olddefconfig"; exit 1; }
+          done
           if grep -Eq '^CONFIG_MODULE_SIG(_FORCE|_ALL)?=y' out/.config; then
             echo "MODULE_SIG masih aktif"; exit 1
           fi
