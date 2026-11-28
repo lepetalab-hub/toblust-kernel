@@ -1160,4 +1160,28 @@ out_free_data:
     vfree(data);
     return ERR_PTR(ret);
 }
+
+#include "security.h"
+
+void ksu_pol_destroy(struct ksu_pol *pol)
+{
+    if (!pol)
+        return;
+    if (pol->db) {
+        policydb_destroy(pol->db);
+        kfree(pol->db);
+    }
+    if (pol->sidtab) {
+        sidtab_destroy(pol->sidtab);
+        kfree(pol->sidtab);
+    }
+    kfree(pol);
+}
+
+void ksu_live_pol(struct ksu_pol *view)
+{
+    view->db = &selinux_state.ss->policydb;
+    view->sidtab = selinux_state.ss->sidtab;
+    view->latest_granting = selinux_state.ss->latest_granting;
+}
 #endif

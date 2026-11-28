@@ -18,7 +18,12 @@ extern bool ksu_hook_backend_ready;
 #ifdef MODULE
 extern bool ksu_bundled;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 extern struct selinux_policy *backup_sepolicy;
+#else
+struct ksu_pol;
+extern struct ksu_pol *backup_sepolicy;
+#endif
 extern bool ksu_no_custom_rc;
 
 static inline int startswith(char *s, char *prefix)

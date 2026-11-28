@@ -91,4 +91,9 @@ static inline struct task_security_struct *selinux_cred(const struct cred *cred)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+#define symtab_search(s, name) hashtab_search((s)->table, name)
+#define symtab_insert(s, name, datum) hashtab_insert((s)->table, name, datum)
+#endif
+
 #endif /* __KSU_COMPAT_419_H */

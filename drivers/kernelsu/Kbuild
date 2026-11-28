@@ -67,7 +67,12 @@ kernelsu-objs += supercall/supercall.o
 
 kernelsu-objs += feature/adb_root.o
 
+KSU_KVER_419 := $(shell test "$(VERSION).$(PATCHLEVEL)" = "4.19" && echo 1)
+ifeq ($(KSU_KVER_419),1)
+kernelsu-objs += feature/selinux_hide_419.o
+else
 kernelsu-objs += feature/selinux_hide.o
+endif
 kernelsu-objs += feature/shell_su_adb_only.o
 kernelsu-objs += feature/avc_spoof.o
 kernelsu-objs += feature/mount_view_filter.o

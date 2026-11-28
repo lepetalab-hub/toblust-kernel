@@ -18,7 +18,11 @@
 #include "linux/lsm_audit.h" // IWYU pragma: keep
 #include "xfrm.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
 struct selinux_policy *backup_sepolicy;
+#else
+struct ksu_pol *backup_sepolicy;
+#endif
 
 #define SELINUX_POLICY_INSTEAD_SELINUX_SS
 
@@ -142,6 +146,36 @@ static void ksu_apply_rules_db(struct policydb *db)
 
 static DEFINE_MUTEX(ksu_policy_mutex_419);
 
+/* 4.19: stock (pre-injection) view that selinux_hide answers from. */
+static void ksu_backup_419(void)
+{
+    struct selinux_ss *ss = selinux_state.ss;
+    struct policydb *bdb;
+    struct sidtab *bsid;
+    struct ksu_pol *nb, *old;
+
+    bdb = ksu_clone_policydb(&ss->policydb, &bsid);
+    if (IS_ERR(bdb)) {
+        pr_err("backup sepolicy: clone failed: %ld\n", PTR_ERR(bdb));
+        return;
+    }
+    nb = kzalloc(sizeof(*nb), GFP_KERNEL);
+    if (!nb) {
+        policydb_destroy(bdb);
+        kfree(bdb);
+        sidtab_destroy(bsid);
+        kfree(bsid);
+        return;
+    }
+    nb->db = bdb;
+    nb->sidtab = bsid;
+    nb->latest_granting = ss->latest_granting;
+    old = backup_sepolicy;
+    backup_sepolicy = nb;
+    if (old)
+        ksu_pol_destroy(old);
+}
+
 /*
  * Swap the new policydb and sidtab into the live selinux_ss. Only memcpy and
  * pointer swaps run under the rwlock, as in 4.19 security_load_policy().
@@ -202,6 +236,7 @@ void apply_kernelsu_rules()
         goto out_unlock;
     }
 
+    ksu_backup_419();
     ksu_apply_rules_db(newdb);
 
     if (ksu_policy_swap_419(newdb, newsid)) {
