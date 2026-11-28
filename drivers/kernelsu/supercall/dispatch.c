@@ -8,6 +8,8 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/thread_info.h>
+#include <linux/sched/signal.h>
+#include <linux/sched/task.h>
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs.h>
 #endif
